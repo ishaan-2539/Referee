@@ -13,3 +13,8 @@ Wed 10:30pm | MCP Inspector | Default filesystem server failed on Windows due to
 Wed 10:35pm | Starlette / MCP SDK | Mount("/mcp") issued automatic 307 redirect to /mcp/, breaking Inspector POST requests with 404
 Wed 10:38pm | Pylance / MCP SDK | FastMCP class import raised attribute error due to SDK rename to MCPServer in mcp.server.mcpserver
 Wed 10:42pm | Starlette / MCP SDK | POST /mcp failed with 500 Internal Server Error (RuntimeError: Task group is not initialized) due to unhandled Starlette lifespan context
+Wed 11:05pm | Pylance / Bedrock | Import "boto3" missing from pyproject.toml dependencies causing reportMissingImports
+Wed 11:25pm | Simulator UI | String matching in app.js missed named queries ("Did Aman pay?"), routing queries to propose_deal and trapping users in a clarification loop
+Wed 11:35pm | Simulator UI | Intent classification order prioritized active deal state over general queries and cancellation commands, trapping user in rigid Q&A procedures
+Wed 11:50pm | Server / Verdict | Single-deal payment logging caused total balance confusion when multiple deals existed for the same counterparty; resolved via FIFO waterfall logic
+Wed 11:58pm | Simulator / Server | Duplicate counterparties caused merged ledgers without confirmation; resolved with PARTY_AMBIGUOUS disambiguation and conversational chitchat interceptors

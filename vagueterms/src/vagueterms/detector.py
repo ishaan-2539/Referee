@@ -15,7 +15,7 @@ MODE_MISSING = "MODE_MISSING"
 PARTIAL_MISSING = "PARTIAL_MISSING"
 
 # Blocking flags that prevent locking a deal
-BLOCKING_FLAGS = {DIRECTION_UNCLEAR, PARTY_PRONOUN, AMOUNT_FUZZY}
+BLOCKING_FLAGS = {DIRECTION_UNCLEAR, PARTY_PRONOUN, PARTY_AMBIGUOUS, AMOUNT_FUZZY}
 
 # Priority order for asking clarifying questions
 PRIORITY_ORDER = [
@@ -44,13 +44,7 @@ def detect_vague_terms(
     raw_utterance: str,
     matching_counterparties: Optional[List[str]] = None
 ) -> Tuple[List[str], Optional[Question], List[str]]:
-    """
-    Pure-function detector for vague handshake terms.
-    Returns:
-        open_flags: List of rule IDs triggered
-        next_question: The highest priority question (or None if no flags)
-        defaults_applied: List of defaulted slot descriptions if capped
-    """
+    """Pure-function detector for vague handshake terms."""
     flags = []
     utterance_lower = raw_utterance.lower()
 
@@ -63,8 +57,8 @@ def detect_vague_terms(
     if not counterparty or counterparty.lower() in PRONOUNS:
         flags.append(PARTY_PRONOUN)
 
-    # Rule 3: PARTY_AMBIGUOUS
-    if matching_counterparties and len(matching_counterparties) > 1:
+    # Rule 3: PARTY_AMBIGUOUS (Triggers if existing matching counterparties exist in DB and haven't been confirmed)
+    if counterparty and counterparty.lower() not in PRONOUNS and matching_counterparties and not slots.get("party_confirmed"):
         flags.append(PARTY_AMBIGUOUS)
 
     # Rule 4: AMOUNT_FUZZY
@@ -95,11 +89,13 @@ def detect_vague_terms(
     if not slots.get("partial_policy"):
         flags.append(PARTIAL_MISSING)
 
+    party_name = counterparty.capitalize() if counterparty else "that person"
+    
     # Questions mapping
     questions_map = {
         DIRECTION_UNCLEAR: Question(DIRECTION_UNCLEAR, "Does the other person owe you, or do you owe them?", "lent"),
         PARTY_PRONOUN: Question(PARTY_PRONOUN, "Who exactly? Give me a full name.", None),
-        PARTY_AMBIGUOUS: Question(PARTY_AMBIGUOUS, f"Which person did you mean? ({', '.join(matching_counterparties or [])})", matching_counterparties[0] if matching_counterparties else None),
+        PARTY_AMBIGUOUS: Question(PARTY_AMBIGUOUS, f"You already have active deals with {party_name}. Is this the same {party_name}, or a different person?", "same"),
         AMOUNT_FUZZY: Question(AMOUNT_FUZZY, "Exactly how much was agreed in total?", None),
         AMOUNT_UNIT: Question(AMOUNT_UNIT, "Can you confirm the exact total amount in Rupees?", slots.get("amount_paise")),
         DEADLINE_RELATIVE: Question(DEADLINE_RELATIVE, "Is Friday 11:59 PM IST acceptable as the exact deadline?", "Friday 11:59 PM IST"),
@@ -109,7 +105,6 @@ def detect_vague_terms(
         PARTIAL_MISSING: Question(PARTIAL_MISSING, "If a partial payment is made, does that count towards reducing the balance with the deadline unchanged?", "accept_partial"),
     }
 
-    # Pick the highest priority question
     next_q = None
     for rule in PRIORITY_ORDER:
         if rule in flags:
