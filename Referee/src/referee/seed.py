@@ -6,22 +6,15 @@ Clearly labeled: DEMO SEED DATA
 
 import os
 from datetime import datetime, timedelta, timezone
-from referee.store import init_db, create_deal, append_event, get_connection
+from referee.store import init_db, create_deal, append_event
 
 def seed_database(db_path: str = "referee.db"):
     """Populates database with sample deals in various states (OPEN, OVERDUE, SETTLED)."""
-    # Wipe existing tables for a fresh demo reset
-    conn = get_connection(db_path)
-    with conn:
-        conn.execute("DROP TABLE IF EXISTS deal_events")
-        conn.execute("DROP TABLE IF EXISTS deals")
-    conn.close()
-
-    # Re-initialize DB schema
+    # Re-initialize DB
     init_db(db_path)
     now = datetime.now(timezone.utc)
 
-    print("🌱 Wiped old entries and seeding Referee database with fresh sample demo deals...")
+    print("🌱 Seeding Referee database with sample demo deals...")
 
     # --- Deal 1: Rahul (Yellow Card - Overdue by 3 days) ---
     d1_slots = {

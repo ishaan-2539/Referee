@@ -3,567 +3,231 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Referee — Alexa+ MCP Simulator</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <title>Referee — Alexa+ Simulator & MCP Inspector</title>
   <style>
     :root {
-      /* Surfaces: one warm-charcoal family, stepped lighter by layer */
-      --bg-page: #0b0b0e;
-      --bg-card: #131317;
-      --bg-raised: #1b1b21;
-      --bg-field: #101014;
-      --line: #26262e;
-
-      /* Red family */
-      --red: #e03a3e;
-      --red-deep: #7d1119;
-      --red-wine: #3a0f14;
-      --rose: #f2a7a9;
-
-      /* Text */
-      --ink: #f2ebe6;
-      --ink-2: #9b9299;
-      --ink-3: #62595f;
-
-      /* Status tones, muted to sit with the reds */
-      --ok: #86d6a0;
-      --warn: #f0c56a;
-
-      --font-sans: 'Inter Tight', system-ui, -apple-system, sans-serif;
-      --font-serif: 'Instrument Serif', Georgia, serif;
-      --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+      --bg: #0f172a;
+      --panel-bg: #1e293b;
+      --card-bg: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --border: #475569;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    
     html, body {
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-      background: var(--bg-page);
-      color: var(--ink);
-      -webkit-font-smoothing: antialiased;
-    }
-
-    body {
-      display: grid;
-      grid-template-rows: auto 1fr;
-      gap: 18px;
-      padding: 22px;
       height: 100vh;
-    }
-
-    /* ---------- Top bar ---------- */
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      padding: 2px 6px;
-    }
-
-    .brand { display: flex; align-items: center; gap: 14px; }
-
-    .logo {
-      width: 46px;
-      height: 46px;
-      border-radius: 50%;
-      background: var(--red);
-      display: grid;
-      place-items: center;
-      flex-shrink: 0;
-    }
-    .logo svg { width: 30px; height: 30px; color: var(--ink); }
-
-    .brand-name {
-      font-family: var(--font-serif);
-      font-size: 2.1rem;
-      line-height: 1;
-      letter-spacing: -0.01em;
-    }
-
-    .header-right { display: flex; align-items: center; gap: 10px; }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      height: 36px;
-      padding: 0 15px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      font-size: 0.78rem;
-      font-weight: 500;
-      color: var(--ink);
-      background: var(--bg-card);
-      white-space: nowrap;
-    }
-    .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
-    .pill.mono { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-2); }
-
-    /* ---------- Layout ---------- */
-    .main-container {
-      display: grid;
-      grid-template-columns: 300px 1fr 400px;
-      gap: 18px;
-      min-height: 0;
-    }
-
-    .card {
-      background: var(--bg-card);
-      border: 1px solid var(--line);
-      border-radius: 26px;
+      width: 100vw;
+      overflow: hidden;
+      background-color: var(--bg);
+      color: var(--text);
       display: flex;
       flex-direction: column;
-      min-height: 0;
-      overflow: hidden;
-      position: relative;
     }
 
-    .card-head {
+    header {
+      height: 50px;
+      padding: 0 24px;
+      background: #020617;
+      border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      padding: 22px 24px 12px;
+      align-items: center;
       flex-shrink: 0;
     }
-    .card-title { font-family: var(--font-serif); font-size: 1.7rem; line-height: 1.1; letter-spacing: -0.01em; }
-    .card-sub { font-size: 0.78rem; color: var(--ink-2); margin-top: 6px; }
+    header h1 { font-size: 1.1rem; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+    header span { font-size: 0.8rem; background: #1e293b; padding: 4px 8px; border-radius: 4px; color: var(--text-muted); }
 
-    .round-btn {
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      border: 1px solid var(--line);
-      background: var(--bg-raised);
+    .main-container {
+      flex: 1;
+      height: calc(100vh - 50px);
       display: grid;
-      place-items: center;
-      color: var(--ink);
-      flex-shrink: 0;
-    }
-    .round-btn svg { width: 16px; height: 16px; }
-
-    /* ---------- Brand panel ---------- */
-    .hero {
-      background: var(--red-wine);
-      border-color: #4d161c;
-      padding: 26px 24px 24px;
-      justify-content: space-between;
+      grid-template-columns: 1fr 420px;
+      overflow: hidden;
+      min-height: 0;
     }
 
-    .hero-top { position: relative; z-index: 2; }
-    .eyebrow {
-      font-size: 0.66rem;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--rose);
+    /* Chat Panel */
+    .chat-panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      border-right: 1px solid var(--border);
+      background: var(--panel-bg);
+      overflow: hidden;
     }
-    .hero h1 {
-      font-family: var(--font-serif);
-      font-weight: 400;
-      font-size: 2.9rem;
-      line-height: 0.98;
-      letter-spacing: -0.015em;
-      margin-top: 14px;
-    }
-    .hero h1 em { font-style: italic; color: var(--rose); }
-
-    .hero-art { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
-    .orb {
-      position: absolute;
-      border-radius: 50%;
-      background: radial-gradient(circle at 34% 30%, #ff6b6e 0%, #c9242b 38%, #5c0d14 78%, #2a070b 100%);
-    }
-    .orb.big { width: 330px; height: 330px; left: -70px; bottom: -120px; }
-    .orb.small { width: 74px; height: 74px; right: 26px; top: 46%; }
-    .ring {
-      position: absolute;
-      border-radius: 50%;
-      border: 1px solid rgba(242, 167, 169, 0.22);
-    }
-    .ring.a { width: 360px; height: 360px; left: -30px; bottom: -80px; }
-    .ring.b { width: 190px; height: 190px; right: -50px; top: 32%; }
-
-    .hero-bottom { position: relative; z-index: 2; }
-    .slots {
-      list-style: none;
-      font-size: 0.66rem;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      line-height: 1.9;
-      color: var(--ink);
-    }
-    .slots-label { font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rose); margin-bottom: 8px; }
-
-    /* ---------- Chat ---------- */
     .chat-history {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
-      padding: 12px 24px 18px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 16px;
     }
-
     .msg {
-      max-width: 78%;
-      padding: 13px 18px;
-      border-radius: 22px;
-      line-height: 1.5;
-      font-size: 0.93rem;
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      line-height: 1.4;
+      font-size: 0.95rem;
       word-break: break-word;
     }
-
     .msg.user {
       align-self: flex-end;
-      background: var(--red);
-      color: #ffffff;
-      border-bottom-right-radius: 6px;
+      background: var(--accent);
+      color: #0f172a;
+      border-bottom-right-radius: 2px;
       font-weight: 500;
     }
-
     .msg.alexa {
       align-self: flex-start;
-      background: var(--bg-raised);
-      border: 1px solid var(--line);
-      color: var(--ink);
-      border-bottom-left-radius: 6px;
+      background: var(--card-bg);
+      border-bottom-left-radius: 2px;
     }
-    .msg.alexa em { font-family: var(--font-serif); font-size: 1.05em; color: var(--rose); }
 
-    /* Chips */
-    .quick-prompts {
-      padding: 4px 24px 14px;
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      flex-shrink: 0;
-      scrollbar-width: none;
-    }
-    .quick-prompts::-webkit-scrollbar { display: none; }
-
-    .chip {
-      background: transparent;
-      border: 1px solid var(--line);
-      color: var(--ink-2);
-      height: 36px;
-      padding: 0 16px;
-      border-radius: 999px;
-      font-size: 0.8rem;
-      font-weight: 500;
-      white-space: nowrap;
-      cursor: pointer;
-      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-    }
-    .chip:hover { background: var(--red-wine); border-color: var(--red-deep); color: var(--ink); }
-
-    /* Verdict card */
+    /* Verdict Card Embed */
     .verdict-card {
-      margin-top: 12px;
-      padding: 18px 18px 16px;
-      border-radius: 18px;
-      background: var(--bg-field);
-      border: 1px solid var(--line);
-      position: relative;
+      margin-top: 8px;
+      padding: 14px;
+      border-radius: 8px;
+      border-left: 6px solid var(--border);
+      background: #0f172a;
+    }
+    .verdict-card.green { border-left-color: var(--green); }
+    .verdict-card.yellow { border-left-color: var(--yellow); }
+    .verdict-card.red { border-left-color: var(--red); }
+    .verdict-card.neutral { border-left-color: var(--accent); }
+    
+    .verdict-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; margin-bottom: 6px; }
+    .verdict-body { font-size: 0.85rem; color: var(--text-muted); }
+
+    .input-area {
+      height: 70px;
+      padding: 14px 16px;
+      background: #0f172a;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+      align-items: center;
+    }
+    .input-area input {
+      flex: 1;
+      height: 42px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0 16px;
+      border-radius: 8px;
+      outline: none;
+      font-size: 0.95rem;
+    }
+    .input-area input:focus { border-color: var(--accent); }
+    .btn {
+      height: 42px;
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      padding: 0 20px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    .btn-mic { background: var(--border); color: var(--text); padding: 0 14px; }
+    .btn-mic.listening { background: var(--red); animation: pulse 1s infinite; }
+
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+    /* Traffic Side Panel */
+    .inspector-panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      background: #020617;
       overflow: hidden;
     }
-    .verdict-card::before {
-      content: "";
-      position: absolute;
-      inset: 0 0 auto 0;
-      height: 5px;
-      background: var(--rose);
-    }
-    .verdict-card.neutral::before { background: var(--rose); }
-    .verdict-card.green::before { background: var(--ok); }
-    .verdict-card.yellow::before { background: var(--warn); }
-    .verdict-card.red::before { background: var(--red); }
-
-    .verdict-header {
+    .inspector-header {
+      height: 40px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-family: var(--font-serif);
-      font-size: 1.5rem;
-      letter-spacing: -0.01em;
-      margin: 4px 0 12px;
-    }
-
-    .status-pill {
-      font-family: var(--font-sans);
-      font-size: 0.64rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      padding: 5px 11px;
-      border-radius: 999px;
-      font-weight: 600;
-      background: var(--red-wine);
-      color: var(--rose);
-    }
-    .verdict-card.green .status-pill { background: var(--ok); color: #0d2216; }
-    .verdict-card.yellow .status-pill { background: var(--warn); color: #2b1f05; }
-    .verdict-card.red .status-pill { background: var(--red); color: #ffffff; }
-
-    .verdict-body {
-      font-size: 0.82rem;
-      color: var(--ink-2);
-      display: flex;
-      gap: 24px;
-    }
-    .verdict-body strong { color: var(--ink); font-weight: 600; font-size: 1rem; margin-left: 4px; }
-
-    /* Input */
-    .input-area {
-      padding: 0 24px 22px;
-      display: flex;
-      gap: 10px;
-      align-items: center;
       flex-shrink: 0;
     }
-
-    .input-area input {
-      flex: 1;
-      height: 52px;
-      background: var(--bg-field);
-      border: 1px solid var(--line);
-      color: var(--ink);
-      padding: 0 22px;
-      border-radius: 999px;
-      outline: none;
-      font-size: 0.93rem;
-      transition: border-color 0.15s ease;
-    }
-    .input-area input::placeholder { color: var(--ink-3); }
-    .input-area input:focus { border-color: var(--red); }
-
-    .btn {
-      height: 52px;
-      background: var(--red);
-      color: #ffffff;
-      border: none;
-      padding: 0 28px;
-      border-radius: 999px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 0.9rem;
-      transition: background 0.15s ease;
-    }
-    .btn:hover { background: #ee5256; }
-
-    .btn-mic {
-      width: 52px;
-      padding: 0;
-      background: var(--bg-raised);
-      border: 1px solid var(--line);
-      color: var(--ink);
-      display: grid;
-      place-items: center;
-    }
-    .btn-mic:hover { background: var(--red-wine); }
-    .btn-mic svg { width: 20px; height: 20px; }
-    .btn-mic:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-mic.listening { background: var(--red); border-color: var(--red); animation: pulse 1s infinite; }
-
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.55; } 100% { opacity: 1; } }
-
-    /* ---------- Inspector ---------- */
-    .count-pill {
-      display: inline-flex;
-      align-items: center;
-      height: 32px;
-      padding: 0 13px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: var(--bg-raised);
-      font-size: 0.74rem;
-      font-weight: 500;
-      color: var(--ink);
-      white-space: nowrap;
-    }
-
     .traffic-log {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
-      padding: 8px 24px 20px;
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 0.75rem;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
     }
-    .traffic-log:empty::before {
-      content: "No calls yet. Tool traffic will appear here.";
-      display: grid;
-      place-items: center;
-      flex: 1;
-      border-radius: 18px;
-      border: 1px dashed var(--line);
-      color: var(--ink-3);
-      font-family: var(--font-sans);
-      font-size: 0.85rem;
-      text-align: center;
-      padding: 24px;
-    }
-
     .rpc-block {
-      background: var(--bg-field);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px 16px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
       white-space: pre-wrap;
       word-break: break-all;
-      line-height: 1.45;
-      color: var(--ink-2);
     }
+    .rpc-type { font-weight: bold; margin-bottom: 4px; }
+    .rpc-req { color: var(--accent); }
+    .rpc-res { color: var(--green); }
 
-    .rpc-type {
-      font-weight: 500;
-      margin-bottom: 8px;
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.66rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-    .rpc-req { color: var(--rose); }
-    .rpc-res { color: var(--ok); }
-
-    /* Segmented bar, echoes the reference */
-    .segbar {
-      display: flex;
-      gap: 3px;
-      margin: 0 24px 22px;
-      height: 8px;
-      flex-shrink: 0;
-    }
-    .segbar span { flex: 1; border-radius: 999px; }
-    .segbar span:nth-child(1) { background: var(--red); flex: 3; }
-    .segbar span:nth-child(2) { background: #b34a50; flex: 2; }
-    .segbar span:nth-child(3) { background: var(--rose); flex: 1.5; }
-    .segbar span:nth-child(4) { background: var(--ink); flex: 1; }
-
-    /* Scrollbars */
-    .chat-history, .traffic-log { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
-
-    @media (max-width: 1240px) {
-      .main-container { grid-template-columns: 1fr 380px; }
-      .hero { display: none; }
-    }
-    @media (max-width: 900px) {
-      html, body { overflow: auto; }
-      body { height: auto; min-height: 100vh; padding: 14px; gap: 14px; }
-      .main-container { grid-template-columns: 1fr; grid-template-rows: 78vh 360px; gap: 14px; }
-      .header-right .pill.mono { display: none; }
-      .msg { max-width: 90%; }
+    @media (max-width: 800px) {
+      .main-container { grid-template-columns: 1fr; grid-template-rows: 1fr 250px; }
     }
   </style>
 </head>
 <body>
   <header>
-    <div class="brand">
-      <div class="logo" aria-label="Referee football logo">
-        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <defs><clipPath id="ball"><circle cx="20" cy="20" r="18.2"/></clipPath></defs>
-          <circle cx="20" cy="20" r="18.2" stroke="currentColor" stroke-width="2.2"/>
-          <g clip-path="url(#ball)" fill="currentColor">
-            <polygon points="20,13.5 26.2,18 23.8,25.4 16.2,25.4 13.8,18"/>
-            <polygon points="0,-6 5.7,-1.85 3.53,4.85 -3.53,4.85 -5.7,-1.85" transform="translate(31.2 4.6) rotate(36)"/>
-            <polygon points="0,-6 5.7,-1.85 3.53,4.85 -3.53,4.85 -5.7,-1.85" transform="translate(38.1 25.9) rotate(108)"/>
-            <polygon points="0,-6 5.7,-1.85 3.53,4.85 -3.53,4.85 -5.7,-1.85" transform="translate(20 39) rotate(180)"/>
-            <polygon points="0,-6 5.7,-1.85 3.53,4.85 -3.53,4.85 -5.7,-1.85" transform="translate(1.9 25.9) rotate(252)"/>
-            <polygon points="0,-6 5.7,-1.85 3.53,4.85 -3.53,4.85 -5.7,-1.85" transform="translate(8.8 4.6) rotate(324)"/>
-          </g>
-          <g stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-            <line x1="20" y1="13.5" x2="20" y2="7.5"/>
-            <line x1="26.2" y1="18" x2="31.9" y2="16.1"/>
-            <line x1="23.8" y1="25.4" x2="27.3" y2="30.3"/>
-            <line x1="16.2" y1="25.4" x2="12.7" y2="30.3"/>
-            <line x1="13.8" y1="18" x2="8.1" y2="16.1"/>
-          </g>
-        </svg>
-      </div>
-      <span class="brand-name">Referee</span>
-    </div>
-    <div class="header-right">
-      <span class="pill mono">Spec 2025-11-25 · Streamable HTTP</span>
-      <span class="pill"><span class="dot"></span>MCP server active</span>
-    </div>
+    <h1><span>⚽</span> Referee — Alexa+ MCP Simulator</h1>
+    <span>Protocol: 2025-11-25 | Streamable HTTP</span>
   </header>
 
   <div class="main-container">
-    <!-- Brand panel -->
-    <aside class="card hero">
-      <div class="hero-art" aria-hidden="true">
-        <div class="ring a"></div>
-        <div class="ring b"></div>
-        <div class="orb big"></div>
-        <div class="orb small"></div>
-      </div>
-      <div class="hero-top">
-        <div class="eyebrow">Handshake deals</div>
-        <h1>Remember what you <em>agreed.</em></h1>
-      </div>
-      <div class="hero-bottom">
-        <div class="slots-label">Terms we pin down</div>
-        <ul class="slots">
-          <li>Direction</li>
-          <li>Counterparty</li>
-          <li>Amount</li>
-          <li>Deadline</li>
-        </ul>
-      </div>
-    </aside>
-
-    <!-- Chat -->
-    <section class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">Alexa+ Simulator</div>
-          <div class="card-sub">Speak or type a handshake deal</div>
-        </div>
-        <div class="round-btn" aria-hidden="true">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h12M9 3l5 5-5 5"/></svg>
-        </div>
-      </div>
-
+    <!-- Chat Panel -->
+    <div class="chat-panel">
       <div class="chat-history" id="chatHistory">
         <div class="msg alexa">
-          Welcome! I am <strong>Referee</strong>. Say an agreement (e.g., <em>"I lent Aman 1500, he'll pay Friday"</em>) or query a verdict/ledger.
+          Welcome! I am Referee. Say a deal (e.g., "I lent Aman 1500, he'll pay Friday") or ask for a verdict/ledger.
         </div>
       </div>
-
-      <div class="quick-prompts">
-        <button class="chip" onclick="sendSample('I lent Aman 1500, he\'ll pay Friday')">I lent Aman 1500...</button>
-        <button class="chip" onclick="sendSample('Aman paid 500')">Aman paid 500</button>
-        <button class="chip" onclick="sendSample('Did Aman pay?')">Did Aman pay?</button>
-        <button class="chip" onclick="sendSample('Who owes me what?')">Who owes me what?</button>
-      </div>
-
       <div class="input-area">
-        <button class="btn btn-mic" id="micBtn" title="Voice input" aria-label="Voice input">
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="6" height="10" rx="3"/><path d="M4 9.5a6 6 0 0 0 12 0M10 15.5V18"/></svg>
-        </button>
+        <button class="btn btn-mic" id="micBtn" title="Voice Input">🎤</button>
         <input type="text" id="userInput" placeholder="Speak or type a handshake deal..." />
         <button class="btn" id="sendBtn">Send</button>
       </div>
-    </section>
+    </div>
 
-    <!-- Inspector -->
-    <section class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">MCP Traffic</div>
-          <div class="card-sub">Raw JSON-RPC frames, live</div>
-        </div>
-        <span class="count-pill" id="rpcCount">0 calls</span>
+    <!-- Live JSON-RPC Traffic Inspector -->
+    <div class="inspector-panel">
+      <div class="inspector-header">
+        <span>Raw MCP JSON-RPC Traffic</span>
+        <span id="rpcCount">0 calls</span>
       </div>
-      <div class="traffic-log" id="trafficLog"></div>
-      <div class="segbar" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-    </section>
+      <div class="traffic-log" id="trafficLog">
+        <!-- Live JSON-RPC frames appended here -->
+      </div>
+    </div>
   </div>
 
   <script src="/simulator/app.js"></script>

@@ -1,8 +1,6 @@
-import os
 import re
-import json
 from datetime import datetime, timedelta, time
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple
 from dateutil.relativedelta import relativedelta, FR, MO, TU, WE, TH, SA, SU
 from referee.models import TermSheet, Direction, PaymentMode
 
@@ -20,6 +18,7 @@ def parse_amount_paise(text: str) -> Optional[int]:
     """Extracts amount and converts Rupees to integer Paise."""
     text_lower = text.lower()
     
+    # Check shorthand amounts like 1.5k, 2l
     k_match = re.search(r"\b(\d+(?:\.\d+)?)\s*k\b", text_lower)
     if k_match:
         return int(float(k_match.group(1)) * 1000 * 100)
@@ -28,6 +27,7 @@ def parse_amount_paise(text: str) -> Optional[int]:
     if l_match:
         return int(float(l_match.group(1)) * 100000 * 100)
 
+    # Match standard numeric formats like 1,500 or 1500
     num_match = re.search(r"\b(?:rs\.?|inr|\₹)?\s*(\d{1,3}(?:,\d{3})*|\d+)\b", text_lower)
     if num_match:
         raw_num = num_match.group(1).replace(",", "")
@@ -38,43 +38,32 @@ def parse_amount_paise(text: str) -> Optional[int]:
 def parse_direction_and_party(text: str) -> Tuple[Optional[Direction], Optional[str]]:
     """Extracts lending/borrowing direction and counterparty name."""
     text_lower = text.lower()
+    
+    # Patterns for lending
+    lent_match = re.search(r"\b(?:lent|loaned|gave|paid)\s+(?:to\s+)?([A-Z][a-z]+|[a-z]+)", text, re.IGNORECASE)
+    if lent_match:
+        party = lent_match.group(1)
+        if party.lower() not in {"to", "me", "a", "the", "some"}:
+            return Direction.LENT, party.capitalize()
+        return Direction.LENT, None
 
-    is_lent = bool(re.search(r"\b(?:lent|loaned|gave|paid)\b", text_lower))
-    is_borrowed = bool(re.search(r"\b(?:borrowed|took|got)\b", text_lower))
+    # Patterns for borrowing
+    borrowed_match = re.search(r"\b(?:borrowed|took|got)\s+(?:from\s+)?([A-Z][a-z]+|[a-z]+)", text, re.IGNORECASE)
+    if borrowed_match:
+        party = borrowed_match.group(1)
+        if party.lower() not in {"from", "me", "a", "the", "some"}:
+            return Direction.BORROWED, party.capitalize()
+        return Direction.BORROWED, None
 
-    from_match = re.search(r"\bfrom\s+([A-Za-z]+)", text, re.IGNORECASE)
-    to_match = re.search(r"\bto\s+([A-Za-z]+)", text, re.IGNORECASE)
-
-    party = None
-    direction = None
-
-    if is_borrowed:
-        direction = Direction.BORROWED
-        if from_match and from_match.group(1).lower() not in {"me", "a", "the", "some"}:
-            party = from_match.group(1).capitalize()
-        else:
-            m = re.search(r"\b(?:borrowed|took|got)\s+(?:from\s+)?([A-Za-z]+)", text, re.IGNORECASE)
-            if m and m.group(1).lower() not in {"from", "me", "a", "the", "some"}:
-                party = m.group(1).capitalize()
-
-    elif is_lent:
-        direction = Direction.LENT
-        if to_match and to_match.group(1).lower() not in {"me", "a", "the", "some"}:
-            party = to_match.group(1).capitalize()
-        else:
-            m = re.search(r"\b(?:lent|loaned|gave|paid)\s+(?:to\s+)?([A-Za-z]+)", text, re.IGNORECASE)
-            if m and m.group(1).lower() not in {"to", "me", "a", "the", "some"}:
-                party = m.group(1).capitalize()
-
-    if not direction and re.search(r"\b(he|she|they|him|her)\b", text_lower):
+    # Pronoun fallback
+    if re.search(r"\b(he|she|they|him|her)\b", text_lower):
         if "pay" in text_lower or "owes" in text_lower:
-            direction = Direction.LENT
-            party = "he"
+            return Direction.LENT, "he"
 
-    return direction, party
+    return None, None
 
 def parse_deadline(text: str, base_dt: Optional[datetime] = None) -> Optional[datetime]:
-    """Parses relative weekday deadlines into absolute datetimes (11:59 PM IST)."""
+    """Parses relative weekday deadlines into absolute timezone-naive datetimes (11:59 PM)."""
     text_lower = text.lower()
     now = base_dt or datetime.now()
 
@@ -84,6 +73,7 @@ def parse_deadline(text: str, base_dt: Optional[datetime] = None) -> Optional[da
 
     for day_name, day_enum in WEEKDAYS.items():
         if day_name in text_lower:
+            # Advance to the next occurrence of the given weekday
             target = now + relativedelta(weekday=day_enum(+1))
             return datetime.combine(target.date(), time(23, 59))
 
@@ -100,8 +90,8 @@ def parse_payment_mode(text: str) -> Optional[PaymentMode]:
         return PaymentMode.BANK
     return None
 
-def parse_utterance_regex(utterance: str, base_dt: Optional[datetime] = None) -> TermSheet:
-    """Regex + rule-based parser fallback."""
+def parse_utterance(utterance: str, base_dt: Optional[datetime] = None) -> TermSheet:
+    """Combines parsing rules into a filled TermSheet."""
     direction, counterparty = parse_direction_and_party(utterance)
     amount_paise = parse_amount_paise(utterance)
     deadline_ts = parse_deadline(utterance, base_dt=base_dt)
@@ -114,69 +104,3 @@ def parse_utterance_regex(utterance: str, base_dt: Optional[datetime] = None) ->
         deadline_ts=deadline_ts,
         payment_mode=payment_mode
     )
-
-def parse_utterance_bedrock(utterance: str, base_dt: Optional[datetime] = None) -> Optional[TermSheet]:
-    """Parses utterance using Amazon Bedrock (Amazon Nova models). Returns None on failure."""
-    try:
-        import boto3
-        region = os.getenv("AWS_REGION", "us-east-1")
-        model_id = os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0")
-        client = boto3.client("bedrock-runtime", region_name=region)
-
-        prompt = f"""Extract term sheet slots from this informal money handshake utterance: "{utterance}"
-Return ONLY a valid JSON object with the following fields:
-- "direction": "lent" or "borrowed" or null
-- "counterparty": string name or pronoun or null
-- "amount_inr": float or null
-- "deadline_relative": relative string description or null
-- "payment_mode": "cash", "upi", "bank", or null
-Do not include any extra text or markdown formatting.
-"""
-
-        body = json.dumps({
-            "messages": [{"role": "user", "content": [{"text": prompt}]}],
-            "inferenceConfig": {"temperature": 0.0, "maxTokens": 200}
-        })
-
-        response = client.invoke_model(
-            modelId=model_id,
-            contentType="application/json",
-            accept="application/json",
-            body=body
-        )
-        
-        resp_body = json.loads(response["body"].read().decode("utf-8"))
-        content_text = resp_body["output"]["message"]["content"][0]["text"].strip()
-        
-        # Clean JSON markdown backticks if present
-        if content_text.startswith("```"):
-            content_text = re.sub(r"^```(?:json)?\n?|\n?```$", "", content_text, flags=re.MULTILINE).strip()
-
-        data = json.loads(content_text)
-
-        dir_val = Direction(data.get("direction")) if data.get("direction") in {"lent", "borrowed"} else None
-        amt_val = int(float(data["amount_inr"]) * 100) if data.get("amount_inr") is not None else None
-        mode_val = PaymentMode(data.get("payment_mode")) if data.get("payment_mode") in {"cash", "upi", "bank"} else None
-        
-        deadline_val = None
-        if data.get("deadline_relative"):
-            deadline_val = parse_deadline(data["deadline_relative"], base_dt=base_dt)
-
-        return TermSheet(
-            direction=dir_val or parse_direction_and_party(utterance)[0],
-            counterparty=data.get("counterparty") or parse_direction_and_party(utterance)[1],
-            amount_paise=amt_val or parse_amount_paise(utterance),
-            deadline_ts=deadline_val or parse_deadline(utterance, base_dt=base_dt),
-            payment_mode=mode_val or parse_payment_mode(utterance)
-        )
-    except Exception:
-        return None
-
-def parse_utterance(utterance: str, base_dt: Optional[datetime] = None) -> TermSheet:
-    """Primary parser entry point. Tries Amazon Bedrock first, falling back to deterministic regex."""
-    if os.getenv("ENABLE_BEDROCK", "false").lower() in {"true", "1"}:
-        parsed = parse_utterance_bedrock(utterance, base_dt=base_dt)
-        if parsed is not None:
-            return parsed
-
-    return parse_utterance_regex(utterance, base_dt=base_dt)
