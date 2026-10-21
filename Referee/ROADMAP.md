@@ -10,11 +10,11 @@
 
 ```text
 CURRENT PHASE:      1 (Core: Detector + Tools 1-3)
-CURRENT TASK:       P1.1 Term sheet model & P1.2 Detector in vagueterms
-LAST COMPLETED:     Phase 0 complete (P0.1 to P0.6)
-LAST SESSION NOTE:  Phase 0 complete. Fixed virtualenv, linked local vagueterms package. Starting P1.1 & P1.2.
+CURRENT TASK:       P1.5 - P1.7 Implement MCP Tools 1, 2, 3
+LAST COMPLETED:     P1.4 Event Store (store.py & tests passing)
+LAST SESSION NOTE:  SQLite store passing unit tests. Implementing propose_deal, answer_question, and lock_deal in server.py.
 BLOCKERS:           none
-LAST UPDATED:       21 Oct 2026 7:35 PM IST
+LAST UPDATED:       21 Oct 2026 8:45 PM IST
 ```
 
 ### Session protocol
