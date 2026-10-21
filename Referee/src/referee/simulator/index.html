@@ -9,25 +9,21 @@
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      /* Surfaces: one warm-charcoal family, stepped lighter by layer */
       --bg-page: #0b0b0e;
       --bg-card: #131317;
       --bg-raised: #1b1b21;
       --bg-field: #101014;
       --line: #26262e;
 
-      /* Red family */
       --red: #e03a3e;
       --red-deep: #7d1119;
       --red-wine: #3a0f14;
       --rose: #f2a7a9;
 
-      /* Text */
       --ink: #f2ebe6;
       --ink-2: #9b9299;
       --ink-3: #62595f;
 
-      /* Status tones, muted to sit with the reds */
       --ok: #86d6a0;
       --warn: #f0c56a;
 
@@ -55,7 +51,6 @@
       height: 100vh;
     }
 
-    /* ---------- Top bar ---------- */
     header {
       display: flex;
       justify-content: space-between;
@@ -99,11 +94,13 @@
       color: var(--ink);
       background: var(--bg-card);
       white-space: nowrap;
+      transition: all 0.3s ease;
     }
     .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
+    .pill.active-draft { border-color: var(--warn); background: rgba(240, 197, 106, 0.1); color: var(--warn); }
+    .pill.active-draft .dot { background: var(--warn); animation: pulse 1.2s infinite; }
     .pill.mono { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-2); }
 
-    /* ---------- Layout ---------- */
     .main-container {
       display: grid;
       grid-template-columns: 300px 1fr 400px;
@@ -143,9 +140,7 @@
       color: var(--ink);
       flex-shrink: 0;
     }
-    .round-btn svg { width: 16px; height: 16px; }
 
-    /* ---------- Brand panel ---------- */
     .hero {
       background: var(--red-wine);
       border-color: #4d161c;
@@ -197,7 +192,6 @@
     }
     .slots-label { font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rose); margin-bottom: 8px; }
 
-    /* ---------- Chat ---------- */
     .chat-history {
       flex: 1;
       min-height: 0;
@@ -215,6 +209,7 @@
       line-height: 1.5;
       font-size: 0.93rem;
       word-break: break-word;
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .msg.user {
@@ -232,9 +227,7 @@
       color: var(--ink);
       border-bottom-left-radius: 6px;
     }
-    .msg.alexa em { font-family: var(--font-serif); font-size: 1.05em; color: var(--rose); }
 
-    /* Chips */
     .quick-prompts {
       padding: 4px 24px 14px;
       display: flex;
@@ -243,7 +236,6 @@
       flex-shrink: 0;
       scrollbar-width: none;
     }
-    .quick-prompts::-webkit-scrollbar { display: none; }
 
     .chip {
       background: transparent;
@@ -256,11 +248,11 @@
       font-weight: 500;
       white-space: nowrap;
       cursor: pointer;
-      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      transition: all 0.15s ease;
     }
     .chip:hover { background: var(--red-wine); border-color: var(--red-deep); color: var(--ink); }
 
-    /* Verdict card */
+    /* Distinct Card Colour Bands */
     .verdict-card {
       margin-top: 12px;
       padding: 18px 18px 16px;
@@ -269,6 +261,7 @@
       border: 1px solid var(--line);
       position: relative;
       overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
     }
     .verdict-card::before {
       content: "";
@@ -277,7 +270,6 @@
       height: 5px;
       background: var(--rose);
     }
-    .verdict-card.neutral::before { background: var(--rose); }
     .verdict-card.green::before { background: var(--ok); }
     .verdict-card.yellow::before { background: var(--warn); }
     .verdict-card.red::before { background: var(--red); }
@@ -288,7 +280,6 @@
       align-items: center;
       font-family: var(--font-serif);
       font-size: 1.5rem;
-      letter-spacing: -0.01em;
       margin: 4px 0 12px;
     }
 
@@ -303,9 +294,9 @@
       background: var(--red-wine);
       color: var(--rose);
     }
-    .verdict-card.green .status-pill { background: var(--ok); color: #0d2216; }
-    .verdict-card.yellow .status-pill { background: var(--warn); color: #2b1f05; }
-    .verdict-card.red .status-pill { background: var(--red); color: #ffffff; }
+    .verdict-card.green .status-pill { background: rgba(134, 214, 160, 0.15); color: var(--ok); border: 1px solid var(--ok); }
+    .verdict-card.yellow .status-pill { background: rgba(240, 197, 106, 0.15); color: var(--warn); border: 1px solid var(--warn); }
+    .verdict-card.red .status-pill { background: rgba(224, 58, 62, 0.2); color: #ff6b6e; border: 1px solid var(--red); }
 
     .verdict-body {
       font-size: 0.82rem;
@@ -315,7 +306,6 @@
     }
     .verdict-body strong { color: var(--ink); font-weight: 600; font-size: 1rem; margin-left: 4px; }
 
-    /* Input */
     .input-area {
       padding: 0 24px 22px;
       display: flex;
@@ -336,7 +326,6 @@
       font-size: 0.93rem;
       transition: border-color 0.15s ease;
     }
-    .input-area input::placeholder { color: var(--ink-3); }
     .input-area input:focus { border-color: var(--red); }
 
     .btn {
@@ -362,27 +351,7 @@
       display: grid;
       place-items: center;
     }
-    .btn-mic:hover { background: var(--red-wine); }
-    .btn-mic svg { width: 20px; height: 20px; }
-    .btn-mic:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-mic.listening { background: var(--red); border-color: var(--red); animation: pulse 1s infinite; }
-
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.55; } 100% { opacity: 1; } }
-
-    /* ---------- Inspector ---------- */
-    .count-pill {
-      display: inline-flex;
-      align-items: center;
-      height: 32px;
-      padding: 0 13px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: var(--bg-raised);
-      font-size: 0.74rem;
-      font-weight: 500;
-      color: var(--ink);
-      white-space: nowrap;
-    }
 
     .traffic-log {
       flex: 1;
@@ -395,19 +364,6 @@
       flex-direction: column;
       gap: 10px;
     }
-    .traffic-log:empty::before {
-      content: "No calls yet. Tool traffic will appear here.";
-      display: grid;
-      place-items: center;
-      flex: 1;
-      border-radius: 18px;
-      border: 1px dashed var(--line);
-      color: var(--ink-3);
-      font-family: var(--font-sans);
-      font-size: 0.85rem;
-      text-align: center;
-      padding: 24px;
-    }
 
     .rpc-block {
       background: var(--bg-field);
@@ -418,6 +374,7 @@
       word-break: break-all;
       line-height: 1.45;
       color: var(--ink-2);
+      animation: fadeIn 0.3s ease-out;
     }
 
     .rpc-type {
@@ -432,76 +389,32 @@
     .rpc-req { color: var(--rose); }
     .rpc-res { color: var(--ok); }
 
-    /* Segmented bar, echoes the reference */
-    .segbar {
-      display: flex;
-      gap: 3px;
-      margin: 0 24px 22px;
-      height: 8px;
-      flex-shrink: 0;
-    }
-    .segbar span { flex: 1; border-radius: 999px; }
-    .segbar span:nth-child(1) { background: var(--red); flex: 3; }
-    .segbar span:nth-child(2) { background: #b34a50; flex: 2; }
-    .segbar span:nth-child(3) { background: var(--rose); flex: 1.5; }
-    .segbar span:nth-child(4) { background: var(--ink); flex: 1; }
-
-    /* Scrollbars */
-    .chat-history, .traffic-log { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
-
-    @media (max-width: 1240px) {
-      .main-container { grid-template-columns: 1fr 380px; }
-      .hero { display: none; }
-    }
-    @media (max-width: 900px) {
-      html, body { overflow: auto; }
-      body { height: auto; min-height: 100vh; padding: 14px; gap: 14px; }
-      .main-container { grid-template-columns: 1fr; grid-template-rows: 78vh 360px; gap: 14px; }
-      .header-right .pill.mono { display: none; }
-      .msg { max-width: 90%; }
-    }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
   </style>
 </head>
 <body>
   <header>
     <div class="brand">
-      <div class="logo" aria-label="Referee football logo">
+      <div class="logo">
         <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <defs><clipPath id="ball"><circle cx="20" cy="20" r="18.2"/></clipPath></defs>
           <circle cx="20" cy="20" r="18.2" stroke="currentColor" stroke-width="2.2"/>
-          <g clip-path="url(#ball)" fill="currentColor">
-            <polygon points="20,13.5 26.2,18 23.8,25.4 16.2,25.4 13.8,18"/>
-            <polygon points="0,-6 5.7,-1.85 3.53,4.85 -3.53,4.85 -5.7,-1.85" transform="translate(31.2 4.6) rotate(36)"/>
-            <polygon points="0,-6 5.7,-1.85 3.53,4.85 -3.53,4.85 -5.7,-1.85" transform="translate(38.1 25.9) rotate(108)"/>
-            <polygon points="0,-6 5.7,-1.85 3.53,4.85 -3.53,4.85 -5.7,-1.85" transform="translate(20 39) rotate(180)"/>
-            <polygon points="0,-6 5.7,-1.85 3.53,4.85 -3.53,4.85 -5.7,-1.85" transform="translate(1.9 25.9) rotate(252)"/>
-            <polygon points="0,-6 5.7,-1.85 3.53,4.85 -3.53,4.85 -5.7,-1.85" transform="translate(8.8 4.6) rotate(324)"/>
-          </g>
-          <g stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-            <line x1="20" y1="13.5" x2="20" y2="7.5"/>
-            <line x1="26.2" y1="18" x2="31.9" y2="16.1"/>
-            <line x1="23.8" y1="25.4" x2="27.3" y2="30.3"/>
-            <line x1="16.2" y1="25.4" x2="12.7" y2="30.3"/>
-            <line x1="13.8" y1="18" x2="8.1" y2="16.1"/>
-          </g>
         </svg>
       </div>
       <span class="brand-name">Referee</span>
     </div>
     <div class="header-right">
-      <span class="pill mono">Spec 2025-11-25 · Streamable HTTP</span>
-      <span class="pill"><span class="dot"></span>MCP server active</span>
+      <span class="pill mono" id="protoPill">Connecting to /mcp…</span>
+      <span class="pill" id="statusPill"><span class="dot"></span>MCP server active</span>
     </div>
   </header>
 
   <div class="main-container">
-    <!-- Brand panel -->
     <aside class="card hero">
       <div class="hero-art" aria-hidden="true">
-        <div class="ring a"></div>
-        <div class="ring b"></div>
-        <div class="orb big"></div>
-        <div class="orb small"></div>
+        <div class="ring a"></div><div class="ring b"></div>
+        <div class="orb big"></div><div class="orb small"></div>
       </div>
       <div class="hero-top">
         <div class="eyebrow">Handshake deals</div>
@@ -518,15 +431,11 @@
       </div>
     </aside>
 
-    <!-- Chat -->
     <section class="card">
       <div class="card-head">
         <div>
           <div class="card-title">Alexa+ Simulator</div>
           <div class="card-sub">Speak or type a handshake deal</div>
-        </div>
-        <div class="round-btn" aria-hidden="true">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h12M9 3l5 5-5 5"/></svg>
         </div>
       </div>
 
@@ -544,15 +453,12 @@
       </div>
 
       <div class="input-area">
-        <button class="btn btn-mic" id="micBtn" title="Voice input" aria-label="Voice input">
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="6" height="10" rx="3"/><path d="M4 9.5a6 6 0 0 0 12 0M10 15.5V18"/></svg>
-        </button>
+        <button class="btn btn-mic" id="micBtn" title="Voice input"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="2" width="6" height="10" rx="3"/><path d="M4 9.5a6 6 0 0 0 12 0M10 15.5V18"/></svg></button>
         <input type="text" id="userInput" placeholder="Speak or type a handshake deal..." />
         <button class="btn" id="sendBtn">Send</button>
       </div>
     </section>
 
-    <!-- Inspector -->
     <section class="card">
       <div class="card-head">
         <div>
@@ -562,7 +468,6 @@
         <span class="count-pill" id="rpcCount">0 calls</span>
       </div>
       <div class="traffic-log" id="trafficLog"></div>
-      <div class="segbar" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     </section>
   </div>
 

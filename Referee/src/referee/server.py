@@ -1,6 +1,7 @@
 import os
 import json
-from typing import Optional, Dict, Any
+import re
+from typing import Optional, Dict, Any, List
 
 from mcp.server.mcpserver import MCPServer
 
@@ -11,6 +12,7 @@ from starlette.responses import FileResponse, JSONResponse
 from starlette.requests import Request
 
 from referee.parser import parse_utterance
+import referee.store as store_mod
 from referee.store import init_db, create_deal, append_event, get_deal_state
 from vagueterms import detect_vague_terms, BLOCKING_FLAGS
 from referee.verdict import compute_verdict
@@ -21,10 +23,38 @@ init_db()
 mcp = MCPServer("Referee", dependencies=["mcp"])
 
 AFFIRMATIVE_ANSWERS = {
-    "yes", "y", "yeah", "yep", "yup", "ok", "okay", "sure", "correct", 
-    "use default", "use defaults", "default", "sounds good", "go ahead", 
+    "yes", "y", "yeah", "yep", "yup", "ok", "okay", "sure", "correct",
+    "use default", "use defaults", "default", "sounds good", "go ahead",
     "cool", "that works", "do it", "fine", "perfect", "sure thing"
 }
+
+MODE_WORDS = {"upi", "cash", "bank"}
+
+
+def _find_matching_parties(name: Optional[str], exclude_deal_id: Optional[str] = None) -> List[str]:
+    """Returns distinct stored counterparty names matching `name`.
+    The deal currently being edited is excluded so a deal never counts as a duplicate of itself."""
+    if not name:
+        return []
+    query_party = name.strip()
+    conn = store_mod.get_connection(store_mod.DEFAULT_DB_PATH)
+    cursor = conn.cursor()
+    if exclude_deal_id:
+        cursor.execute(
+            "SELECT DISTINCT counterparty FROM deals "
+            "WHERE (LOWER(counterparty) = LOWER(?) OR LOWER(counterparty) LIKE LOWER(?)) AND id != ?",
+            (query_party, f"{query_party} %", exclude_deal_id)
+        )
+    else:
+        cursor.execute(
+            "SELECT DISTINCT counterparty FROM deals "
+            "WHERE LOWER(counterparty) = LOWER(?) OR LOWER(counterparty) LIKE LOWER(?)",
+            (query_party, f"{query_party} %")
+        )
+    rows = cursor.fetchall()
+    conn.close()
+    return [r["counterparty"] for r in rows]
+
 
 @mcp.tool()
 def ping() -> str:
@@ -38,21 +68,9 @@ def propose_deal(utterance: str) -> Dict[str, Any]:
         term_sheet = parse_utterance(utterance)
         slots = term_sheet.to_dict()
 
-        counterparty = slots.get("counterparty")
-        matching_parties = []
+        matching_parties = _find_matching_parties(slots.get("counterparty"))
 
-        # Check database for existing counterparties with the same name
-        if counterparty:
-            import referee.store as store_mod
-            conn = store_mod.get_connection(store_mod.DEFAULT_DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT counterparty FROM deals WHERE LOWER(counterparty) = LOWER(?)", (counterparty.strip(),))
-            rows = cursor.fetchall()
-            conn.close()
-            if rows:
-                matching_parties = [r["counterparty"] for r in rows]
-
-        deal_id = create_deal(utterance, slots)
+        deal_id = create_deal(utterance, slots, db_path=store_mod.DEFAULT_DB_PATH)
         open_flags, next_q, defaults_applied = detect_vague_terms(slots, utterance, matching_counterparties=matching_parties)
 
         next_question_str = next_q.prompt if next_q else None
@@ -79,21 +97,12 @@ def propose_deal(utterance: str) -> Dict[str, Any]:
 def answer_question(deal_id: str, answer: str) -> Dict[str, Any]:
     """Tool 2: Takes an answer to a clarifying question, resolves party disambiguation, and updates deal slots."""
     try:
-        state = get_deal_state(deal_id)
+        state = get_deal_state(deal_id, db_path=store_mod.DEFAULT_DB_PATH)
         if not state:
             return {"error": f"Deal {deal_id} not found", "summary": "I couldn't find an active deal to update."}
 
         counterparty = state.get("counterparty")
-        matching_parties = []
-        if counterparty:
-            import referee.store as store_mod
-            conn = store_mod.get_connection(store_mod.DEFAULT_DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT counterparty FROM deals WHERE LOWER(counterparty) = LOWER(?)", (counterparty.strip(),))
-            rows = cursor.fetchall()
-            conn.close()
-            if rows:
-                matching_parties = [r["counterparty"] for r in rows]
+        matching_parties = _find_matching_parties(counterparty, exclude_deal_id=deal_id)
 
         _, next_q, _ = detect_vague_terms(state, state.get("raw_utterance", ""), matching_counterparties=matching_parties)
         updates: Dict[str, Any] = {}
@@ -104,12 +113,23 @@ def answer_question(deal_id: str, answer: str) -> Dict[str, Any]:
             is_affirmative = answer_lower in AFFIRMATIVE_ANSWERS
 
             if rule_id == "PARTY_AMBIGUOUS":
-                if is_affirmative or "same" in answer_lower:
+                if is_affirmative or "same" in answer_lower or answer_lower in MODE_WORDS:
                     updates["party_confirmed"] = True
+                    if answer_lower in MODE_WORDS:
+                        updates["payment_mode"] = answer_lower
                 else:
-                    # User provided a new distinguishing name (e.g., "Aman Sharma" or "Different Aman")
-                    new_name = answer.strip().title()
-                    updates["counterparty"] = new_name
+                    cleaned_name = re.sub(
+                        r"^(?:(?:its|it's|it is|a|an|no|different|another|person|new|other)\s+)+",
+                        "",
+                        answer.strip(),
+                        flags=re.IGNORECASE,
+                    ).strip().title()
+
+                    curr_party = (counterparty or "").strip()
+                    if not cleaned_name or cleaned_name.lower() == curr_party.lower():
+                        cleaned_name = f"{curr_party or 'Counterparty'} (2)"
+
+                    updates["counterparty"] = cleaned_name
                     updates["party_confirmed"] = True
             elif rule_id == "PARTY_PRONOUN":
                 if not is_affirmative:
@@ -149,22 +169,11 @@ def answer_question(deal_id: str, answer: str) -> Dict[str, Any]:
                     updates["partial_policy"] = "all_or_nothing"
 
         if updates:
-            append_event(deal_id, "term_set", updates)
+            append_event(deal_id, "term_set", updates, db_path=store_mod.DEFAULT_DB_PATH)
 
-        updated_state = get_deal_state(deal_id) or {}
-        
-        # Re-check remaining flags
-        updated_party = updated_state.get("counterparty")
-        matching_updated = []
-        if updated_party:
-            import referee.store as store_mod
-            conn = store_mod.get_connection(store_mod.DEFAULT_DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT counterparty FROM deals WHERE LOWER(counterparty) = LOWER(?)", (updated_party.strip(),))
-            rows = cursor.fetchall()
-            conn.close()
-            if rows:
-                matching_updated = [r["counterparty"] for r in rows]
+        updated_state = get_deal_state(deal_id, db_path=store_mod.DEFAULT_DB_PATH) or {}
+
+        matching_updated = _find_matching_parties(updated_state.get("counterparty"), exclude_deal_id=deal_id)
 
         remaining_flags, remaining_q, _ = detect_vague_terms(updated_state, updated_state.get("raw_utterance", ""), matching_counterparties=matching_updated)
 
@@ -193,7 +202,7 @@ def answer_question(deal_id: str, answer: str) -> Dict[str, Any]:
         }
     except Exception as e:
         return {"error": str(e), "summary": "Failed to update terms."}
-    
+
 @mcp.tool()
 def lock_deal(deal_id: str, confirm: bool = True) -> Dict[str, Any]:
     """Tool 3: Freezes terms and locks the deal. Returns UPI and WhatsApp sharing links."""
@@ -201,7 +210,7 @@ def lock_deal(deal_id: str, confirm: bool = True) -> Dict[str, Any]:
         if not confirm:
             return {"error": "Confirmation required to lock deal", "summary": "No problem, deal left unlocked."}
 
-        state = get_deal_state(deal_id)
+        state = get_deal_state(deal_id, db_path=store_mod.DEFAULT_DB_PATH)
         if not state:
             return {"error": f"Deal {deal_id} not found", "summary": "Error: Deal not found."}
 
@@ -214,7 +223,7 @@ def lock_deal(deal_id: str, confirm: bool = True) -> Dict[str, Any]:
                 "summary": "We still need a few details before locking this deal."
             }
 
-        append_event(deal_id, "locked", {"locked": True})
+        append_event(deal_id, "locked", {"locked": True}, db_path=store_mod.DEFAULT_DB_PATH)
 
         amount_inr = (state.get("principal_paise") or 0) / 100
         party = state.get("counterparty", "friend")
@@ -240,11 +249,26 @@ def lock_deal(deal_id: str, confirm: bool = True) -> Dict[str, Any]:
 def log_payment(amount_inr: float, deal_id: Optional[str] = None, counterparty: Optional[str] = None, mode: Optional[str] = None) -> Dict[str, Any]:
     """Tool 4: Logs a payment using a FIFO waterfall across active deals for a counterparty."""
     try:
-        import referee.store as store_mod
         conn = store_mod.get_connection(store_mod.DEFAULT_DB_PATH)
         cursor = conn.cursor()
 
         target_deals = []
+
+        if counterparty and not deal_id:
+            query_party = counterparty.strip()
+            cursor.execute(
+                "SELECT DISTINCT counterparty FROM deals WHERE LOWER(counterparty) = LOWER(?) OR LOWER(counterparty) LIKE LOWER(?)",
+                (query_party, f"{query_party} %")
+            )
+            matched_parties = [r["counterparty"] for r in cursor.fetchall()]
+
+            if len(matched_parties) > 1:
+                conn.close()
+                party_options = " or ".join(matched_parties)
+                return {
+                    "error": "Ambiguous counterparty",
+                    "summary": f"You have deals with multiple people matching '{counterparty}': {party_options}. Which person paid?"
+                }
 
         if deal_id:
             cursor.execute("SELECT id FROM deals WHERE id = ?", (deal_id,))
@@ -252,19 +276,19 @@ def log_payment(amount_inr: float, deal_id: Optional[str] = None, counterparty: 
             target_deals = [r["id"] for r in rows]
         elif counterparty:
             cursor.execute("""
-                SELECT id FROM deals 
-                WHERE LOWER(counterparty) = LOWER(?) AND status != 'SETTLED'
+                SELECT id FROM deals
+                WHERE (LOWER(counterparty) = LOWER(?) OR LOWER(counterparty) LIKE LOWER(?)) AND status != 'SETTLED'
                 ORDER BY created_at ASC
-            """, (counterparty.strip(),))
+            """, (counterparty.strip(), f"{counterparty.strip()} %"))
             rows = cursor.fetchall()
             target_deals = [r["id"] for r in rows]
 
             if not target_deals:
                 cursor.execute("""
-                    SELECT id FROM deals 
-                    WHERE LOWER(counterparty) = LOWER(?)
+                    SELECT id FROM deals
+                    WHERE LOWER(counterparty) = LOWER(?) OR LOWER(counterparty) LIKE LOWER(?)
                     ORDER BY created_at DESC LIMIT 1
-                """, (counterparty.strip(),))
+                """, (counterparty.strip(), f"{counterparty.strip()} %"))
                 row = cursor.fetchone()
                 if row:
                     target_deals = [row["id"]]
@@ -274,14 +298,14 @@ def log_payment(amount_inr: float, deal_id: Optional[str] = None, counterparty: 
         if not target_deals:
             return {"error": "Deal not found", "summary": f"I couldn't find an active deal for {counterparty or 'that query'} to record that payment."}
 
-        remaining_paise_to_apply = int(amount_inr * 100)
+        remaining_paise_to_apply = int(round(amount_inr * 100))
         events_logged = []
         last_deal_id = target_deals[0]
 
         for d_id in target_deals:
             if remaining_paise_to_apply <= 0:
                 break
-            
+
             last_deal_id = d_id
             st = get_deal_state(d_id, db_path=store_mod.DEFAULT_DB_PATH) or {}
             v = compute_verdict(st)
@@ -296,7 +320,6 @@ def log_payment(amount_inr: float, deal_id: Optional[str] = None, counterparty: 
                 events_logged.append(ev_id)
                 remaining_paise_to_apply -= paise_for_this_deal
 
-        # Retrieve specific target deal balance and counterparty name
         last_st = get_deal_state(last_deal_id, db_path=store_mod.DEFAULT_DB_PATH) or {}
         last_verdict = compute_verdict(last_st)
         deal_bal_inr = last_verdict["balance_paise"] / 100
@@ -331,11 +354,25 @@ def get_verdict(deal_id: Optional[str] = None, counterparty: Optional[str] = Non
         party = counterparty
         target_deal_id = deal_id
 
-        if party:
-            import referee.store as store_mod
+        if party and not deal_id:
             conn = store_mod.get_connection(store_mod.DEFAULT_DB_PATH)
             cursor = conn.cursor()
-            cursor.execute("SELECT id FROM deals WHERE LOWER(counterparty) = LOWER(?) ORDER BY created_at DESC LIMIT 1", (party.strip(),))
+            query_party = party.strip()
+            cursor.execute(
+                "SELECT DISTINCT counterparty FROM deals WHERE LOWER(counterparty) = LOWER(?) OR LOWER(counterparty) LIKE LOWER(?)",
+                (query_party, f"{query_party} %")
+            )
+            matched_parties = [r["counterparty"] for r in cursor.fetchall()]
+
+            if len(matched_parties) > 1:
+                conn.close()
+                party_options = " or ".join(matched_parties)
+                return {
+                    "error": "Ambiguous counterparty",
+                    "summary": f"You have deals with multiple people matching '{party}': {party_options}. Which person are you checking?"
+                }
+
+            cursor.execute("SELECT id FROM deals WHERE LOWER(counterparty) = LOWER(?) OR LOWER(counterparty) LIKE LOWER(?) ORDER BY created_at DESC LIMIT 1", (query_party, f"{query_party} %"))
             row = cursor.fetchone()
             conn.close()
             if row:
@@ -344,13 +381,12 @@ def get_verdict(deal_id: Optional[str] = None, counterparty: Optional[str] = Non
         if not target_deal_id:
             return {"error": "Deal not found", "summary": f"No active record found for {party or 'that query'}."}
 
-        state = get_deal_state(target_deal_id)
+        state = get_deal_state(target_deal_id, db_path=store_mod.DEFAULT_DB_PATH)
         if not state:
             return {"error": f"Deal {target_deal_id} not found", "summary": "Error: Deal record not found."}
 
         verdict = compute_verdict(state)
 
-        # If counterparty was queried, append overall context if multiple deals exist
         if party:
             ledger_info = get_ledger(counterparty=party)
             net_bal = ledger_info.get("net_balance_inr", 0)
@@ -376,7 +412,7 @@ def get_verdict(deal_id: Optional[str] = None, counterparty: Optional[str] = Non
 def amend_deal(deal_id: str, field: str, new_value: str, reason: Optional[str] = None) -> Dict[str, Any]:
     """Tool 6: Appends an 'amended' event modifying a deal term."""
     try:
-        state = get_deal_state(deal_id)
+        state = get_deal_state(deal_id, db_path=store_mod.DEFAULT_DB_PATH)
         if not state:
             return {"error": f"Deal {deal_id} not found", "summary": "Error: Deal record not found."}
 
@@ -393,8 +429,8 @@ def amend_deal(deal_id: str, field: str, new_value: str, reason: Optional[str] =
             "reason": reason or "User requested amendment"
         }
 
-        event_id = append_event(deal_id, "amended", amendment_payload)
-        updated_state = get_deal_state(deal_id) or {}
+        event_id = append_event(deal_id, "amended", amendment_payload, db_path=store_mod.DEFAULT_DB_PATH)
+        updated_state = get_deal_state(deal_id, db_path=store_mod.DEFAULT_DB_PATH) or {}
         party = updated_state.get("counterparty") or "deal"
         summary = f"Amended! Updated {field} for {party} to {new_value}."
 
@@ -412,12 +448,12 @@ def amend_deal(deal_id: str, field: str, new_value: str, reason: Optional[str] =
 def get_ledger(counterparty: Optional[str] = None) -> Dict[str, Any]:
     """Tool 7: Summarizes net balances across all recorded deals with an itemized person breakdown."""
     try:
-        import referee.store as store_mod
         conn = store_mod.get_connection(store_mod.DEFAULT_DB_PATH)
         cursor = conn.cursor()
 
         if counterparty:
-            cursor.execute("SELECT id FROM deals WHERE LOWER(counterparty) = LOWER(?)", (counterparty.strip(),))
+            query_party = counterparty.strip()
+            cursor.execute("SELECT id FROM deals WHERE LOWER(counterparty) = LOWER(?) OR LOWER(counterparty) LIKE LOWER(?)", (query_party, f"{query_party} %"))
         else:
             cursor.execute("SELECT id FROM deals")
 
@@ -429,7 +465,7 @@ def get_ledger(counterparty: Optional[str] = None) -> Dict[str, Any]:
 
         for row in rows:
             d_id = row["id"]
-            st = get_deal_state(d_id)
+            st = get_deal_state(d_id, db_path=store_mod.DEFAULT_DB_PATH)
             if st:
                 verdict = compute_verdict(st)
                 party = st.get("counterparty") or "Unknown"
@@ -444,7 +480,7 @@ def get_ledger(counterparty: Optional[str] = None) -> Dict[str, Any]:
 
                 if party not in party_balances:
                     party_balances[party] = {"net_paise": 0, "status": status, "colour": verdict["colour"]}
-                
+
                 party_balances[party]["net_paise"] += net_p
                 if verdict["colour"] in ("yellow", "red"):
                     party_balances[party]["status"] = status
