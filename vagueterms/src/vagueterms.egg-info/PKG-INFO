@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: vagueterms
+Version: 0.1.0
+Summary: A deterministic rules engine to detect vague terms in money handshakes.
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: python-dateutil>=2.9.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Dynamic: license-file
+
+# vagueterms
+
+A deterministic, pure-Python rules engine that detects vague terms (dates, amounts, parties) in informal financial agreements. 
+Built for the Referee project (Amazon Developer Hackathon 2026).
