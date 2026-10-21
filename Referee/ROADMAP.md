@@ -8,13 +8,13 @@
 
 ## 0. START HERE (update this block every session)
 
-```text
-CURRENT PHASE:      1 (Core: Detector + Tools 1-3)
-CURRENT TASK:       P1.5 - P1.7 Implement MCP Tools 1, 2, 3
-LAST COMPLETED:     P1.4 Event Store (store.py & tests passing)
-LAST SESSION NOTE:  SQLite store passing unit tests. Implementing propose_deal, answer_question, and lock_deal in server.py.
+```
+CURRENT PHASE:      3 (Polish)
+CURRENT TASK:       P3.1 Bedrock parser (Amazon Nova + regex fallback)
+LAST COMPLETED:     Phase 2 (Tools 1-7, Links, Simulator UI, MCP Inspector protocol)
+LAST SESSION NOTE:  Phase 2 verified green! All 7 MCP tools live over Streamable HTTP (/mcp). Simulator UI with Web Speech API & JSON-RPC traffic panel fully functional. Ready to add Bedrock parser fallback and polish docs.
 BLOCKERS:           none
-LAST UPDATED:       21 Oct 2026 8:45 PM IST
+LAST UPDATED:       21 Oct 2026 10:50 PM IST
 ```
 
 ### Session protocol

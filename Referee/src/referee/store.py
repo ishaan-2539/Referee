@@ -6,13 +6,17 @@ from typing import Optional, Dict, Any, List
 
 DEFAULT_DB_PATH = "referee.db"
 
-def get_connection(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
+def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
+    if db_path is None:
+        db_path = DEFAULT_DB_PATH
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
-def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
+def init_db(db_path: Optional[str] = None) -> None:
     """Initializes the SQLite database with deals and deal_events tables."""
+    if db_path is None:
+        db_path = DEFAULT_DB_PATH
     conn = get_connection(db_path)
     with conn:
         conn.execute("""
@@ -47,9 +51,11 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> None:
 def create_deal(
     raw_utterance: str,
     slots: Dict[str, Any],
-    db_path: str = DEFAULT_DB_PATH
+    db_path: Optional[str] = None
 ) -> str:
     """Creates a new deal record and appends a 'created' event."""
+    if db_path is None:
+        db_path = DEFAULT_DB_PATH
     deal_id = str(uuid.uuid4())[:8]
     now_iso = datetime.now(timezone.utc).isoformat()
     
@@ -85,9 +91,11 @@ def append_event(
     deal_id: str,
     event_type: str,
     payload: Dict[str, Any],
-    db_path: str = DEFAULT_DB_PATH
+    db_path: Optional[str] = None
 ) -> str:
     """Appends an event to the append-only event log."""
+    if db_path is None:
+        db_path = DEFAULT_DB_PATH
     event_id = str(uuid.uuid4())
     now_iso = datetime.now(timezone.utc).isoformat()
     
@@ -104,8 +112,10 @@ def append_event(
     conn.close()
     return event_id
 
-def get_deal_events(deal_id: str, db_path: str = DEFAULT_DB_PATH) -> List[Dict[str, Any]]:
+def get_deal_events(deal_id: str, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
     """Fetches all events for a deal ordered by timestamp."""
+    if db_path is None:
+        db_path = DEFAULT_DB_PATH
     conn = get_connection(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT id, type, payload_json, ts FROM deal_events WHERE deal_id = ? ORDER BY ts ASC", (deal_id,))
@@ -122,8 +132,11 @@ def get_deal_events(deal_id: str, db_path: str = DEFAULT_DB_PATH) -> List[Dict[s
         })
     return events
 
-def get_deal_state(deal_id: str, db_path: str = DEFAULT_DB_PATH) -> Optional[Dict[str, Any]]:
+def get_deal_state(deal_id: str, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Derives current deal state by folding its event history."""
+    if db_path is None:
+        db_path = DEFAULT_DB_PATH
+
     conn = get_connection(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM deals WHERE id = ?", (deal_id,))
@@ -161,9 +174,14 @@ def get_deal_state(deal_id: str, db_path: str = DEFAULT_DB_PATH) -> Optional[Dic
             payments.append(payload)
         elif ev_type == "amended":
             amendments.append(payload)
-            for k, v in payload.items():
-                if k in state:
-                    state[k] = v
+            field = payload.get("field")
+            if field:
+                new_val = payload.get("new_value")
+                state[field] = new_val
+                if field == "principal_paise":
+                    state["amount_paise"] = new_val
+                elif field == "payment_mode":
+                    state["mode"] = new_val
 
     principal = state.get("principal_paise") or 0
     balance = principal - paid_paise

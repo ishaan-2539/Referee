@@ -72,19 +72,19 @@ def detect_vague_terms(
         flags.append(AMOUNT_FUZZY)
 
     # Rule 5: AMOUNT_UNIT
-    if re.search(r"\b(\d+k|\d+l|half)\b", utterance_lower):
+    if not slots.get("amount_confirmed") and re.search(r"\b(\d+k|\d+l|half)\b", utterance_lower):
         flags.append(AMOUNT_UNIT)
 
     # Rule 6: DEADLINE_RELATIVE
-    if re.search(r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|tomorrow|later)\b", utterance_lower):
+    if not slots.get("deadline_confirmed") and re.search(r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|tomorrow|later)\b", utterance_lower):
         flags.append(DEADLINE_RELATIVE)
 
     # Rule 7: DEADLINE_FUZZY
-    if re.search(r"\b(end of month|by evening|in a few days|soon)\b", utterance_lower):
+    if not slots.get("deadline_confirmed") and re.search(r"\b(end of month|by evening|in a few days|soon)\b", utterance_lower):
         flags.append(DEADLINE_FUZZY)
 
     # Rule 8: DEADLINE_CONDITIONAL
-    if re.search(r"\b(when he gets paid|when i need it|once he can|whenever)\b", utterance_lower):
+    if not slots.get("deadline_confirmed") and re.search(r"\b(when he gets paid|when i need it|once he can|whenever)\b", utterance_lower):
         flags.append(DEADLINE_CONDITIONAL)
 
     # Rule 9: MODE_MISSING
