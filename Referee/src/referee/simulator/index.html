@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Referee — Alexa+ MCP Simulator</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='19' fill='%23f2ebe6'/%3E%3Cpolygon points='20,14.5 25.23,18.3 23.23,24.45 16.77,24.45 14.77,18.3' fill='%230b0b0e'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -25,6 +26,7 @@
       --ink-3: #62595f;
 
       --ok: #86d6a0;
+      --live: #3ddc84;
       --warn: #f0c56a;
 
       --font-sans: 'Inter Tight', system-ui, -apple-system, sans-serif;
@@ -43,13 +45,26 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* soft ambient glow behind the page */
     body {
       display: grid;
       grid-template-rows: auto 1fr;
       gap: 18px;
       padding: 22px;
       height: 100vh;
+      background:
+        radial-gradient(900px 420px at 12% -10%, rgba(224, 58, 62, 0.10), transparent 60%),
+        radial-gradient(700px 380px at 100% 110%, rgba(125, 17, 25, 0.12), transparent 60%),
+        var(--bg-page);
     }
+
+    ::selection { background: rgba(224, 58, 62, 0.35); }
+
+    /* slim scrollbars */
+    * { scrollbar-width: thin; scrollbar-color: #2e2e38 transparent; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #2e2e38; border-radius: 8px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3b3b47; }
 
     header {
       display: flex;
@@ -61,22 +76,32 @@
 
     .brand { display: flex; align-items: center; gap: 14px; }
 
+    /* Football logo */
     .logo {
       width: 46px;
       height: 46px;
       border-radius: 50%;
-      background: var(--red);
       display: grid;
       place-items: center;
       flex-shrink: 0;
+      box-shadow: 0 0 0 1px rgba(242, 235, 230, 0.18), 0 6px 22px rgba(224, 58, 62, 0.35);
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .logo svg { width: 30px; height: 30px; color: var(--ink); }
+    .logo:hover { transform: rotate(72deg) scale(1.04); }
+    .logo svg { width: 46px; height: 46px; display: block; }
 
+    .brand-text { display: flex; flex-direction: column; gap: 3px; }
     .brand-name {
       font-family: var(--font-serif);
       font-size: 2.1rem;
       line-height: 1;
       letter-spacing: -0.01em;
+    }
+    .brand-tag {
+      font-size: 0.62rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-3);
     }
 
     .header-right { display: flex; align-items: center; gap: 10px; }
@@ -96,10 +121,23 @@
       white-space: nowrap;
       transition: all 0.3s ease;
     }
-    .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
-    .pill.active-draft { border-color: var(--warn); background: rgba(240, 197, 106, 0.1); color: var(--warn); }
-    .pill.active-draft .dot { background: var(--warn); animation: pulse 1.2s infinite; }
+    .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); flex-shrink: 0; transition: background 0.3s ease, box-shadow 0.3s ease; }
     .pill.mono { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-2); }
+    .pill.mono.live { color: var(--ink); border-color: rgba(61, 220, 132, 0.28); }
+
+    /* connection states (driven by the small script at the bottom) */
+    #statusPill[data-state="connecting"] .dot { background: var(--warn); animation: pulse 1.2s infinite; }
+    #statusPill[data-state="online"] { border-color: rgba(61, 220, 132, 0.35); background: rgba(61, 220, 132, 0.07); }
+    #statusPill[data-state="online"] .dot {
+      background: var(--live);
+      box-shadow: 0 0 0 0 rgba(61, 220, 132, 0.6), 0 0 10px 2px rgba(61, 220, 132, 0.75);
+      animation: glow 2s ease-out infinite;
+    }
+    #statusPill[data-state="offline"] { border-color: rgba(224, 58, 62, 0.4); }
+    #statusPill[data-state="offline"] .dot { background: var(--red); box-shadow: 0 0 8px rgba(224, 58, 62, 0.6); }
+
+    .pill.active-draft { border-color: var(--warn); background: rgba(240, 197, 106, 0.1); color: var(--warn); }
+    .pill.active-draft .dot { background: var(--warn); box-shadow: none; animation: pulse 1.2s infinite; }
 
     .main-container {
       display: grid;
@@ -117,6 +155,7 @@
       min-height: 0;
       overflow: hidden;
       position: relative;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 18px 40px rgba(0, 0, 0, 0.35);
     }
 
     .card-head {
@@ -128,6 +167,18 @@
     }
     .card-title { font-family: var(--font-serif); font-size: 1.7rem; line-height: 1.1; letter-spacing: -0.01em; }
     .card-sub { font-size: 0.78rem; color: var(--ink-2); margin-top: 6px; }
+
+    .count-pill {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--ink-2);
+      border: 1px solid var(--line);
+      background: var(--bg-field);
+      padding: 6px 11px;
+      border-radius: 999px;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
 
     .round-btn {
       width: 38px;
@@ -171,8 +222,8 @@
       border-radius: 50%;
       background: radial-gradient(circle at 34% 30%, #ff6b6e 0%, #c9242b 38%, #5c0d14 78%, #2a070b 100%);
     }
-    .orb.big { width: 330px; height: 330px; left: -70px; bottom: -120px; }
-    .orb.small { width: 74px; height: 74px; right: 26px; top: 46%; }
+    .orb.big { width: 330px; height: 330px; left: -70px; bottom: -120px; animation: float 9s ease-in-out infinite; }
+    .orb.small { width: 74px; height: 74px; right: 26px; top: 46%; animation: float 7s ease-in-out infinite reverse; }
     .ring {
       position: absolute;
       border-radius: 50%;
@@ -190,6 +241,8 @@
       line-height: 1.9;
       color: var(--ink);
     }
+    .slots li { display: flex; align-items: center; gap: 9px; }
+    .slots li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--rose); opacity: 0.8; }
     .slots-label { font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rose); margin-bottom: 8px; }
 
     .chat-history {
@@ -200,6 +253,7 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      scroll-behavior: smooth;
     }
 
     .msg {
@@ -214,10 +268,11 @@
 
     .msg.user {
       align-self: flex-end;
-      background: var(--red);
+      background: linear-gradient(180deg, #e8474b 0%, var(--red) 100%);
       color: #ffffff;
       border-bottom-right-radius: 6px;
       font-weight: 500;
+      box-shadow: 0 6px 18px rgba(224, 58, 62, 0.25);
     }
 
     .msg.alexa {
@@ -236,6 +291,7 @@
       flex-shrink: 0;
       scrollbar-width: none;
     }
+    .quick-prompts::-webkit-scrollbar { display: none; }
 
     .chip {
       background: transparent;
@@ -250,7 +306,8 @@
       cursor: pointer;
       transition: all 0.15s ease;
     }
-    .chip:hover { background: var(--red-wine); border-color: var(--red-deep); color: var(--ink); }
+    .chip:hover { background: var(--red-wine); border-color: var(--red-deep); color: var(--ink); transform: translateY(-1px); }
+    .chip:active { transform: translateY(0); }
 
     /* Distinct Card Colour Bands */
     .verdict-card {
@@ -324,9 +381,10 @@
       border-radius: 999px;
       outline: none;
       font-size: 0.93rem;
-      transition: border-color 0.15s ease;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
-    .input-area input:focus { border-color: var(--red); }
+    .input-area input::placeholder { color: var(--ink-3); }
+    .input-area input:focus { border-color: var(--red); box-shadow: 0 0 0 4px rgba(224, 58, 62, 0.14); }
 
     .btn {
       height: 52px;
@@ -338,9 +396,10 @@
       font-weight: 600;
       cursor: pointer;
       font-size: 0.9rem;
-      transition: background 0.15s ease;
+      transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
     }
-    .btn:hover { background: #ee5256; }
+    .btn:hover { background: #ee5256; box-shadow: 0 6px 18px rgba(224, 58, 62, 0.3); }
+    .btn:active { transform: scale(0.97); }
 
     .btn-mic {
       width: 52px;
@@ -351,6 +410,9 @@
       display: grid;
       place-items: center;
     }
+    .btn-mic:hover { background: var(--bg-raised); border-color: var(--red-deep); box-shadow: none; }
+    .btn-mic svg { width: 20px; height: 20px; }
+    .btn-mic:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-mic.listening { background: var(--red); border-color: var(--red); animation: pulse 1s infinite; }
 
     .traffic-log {
@@ -392,21 +454,64 @@
     @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+    @keyframes glow {
+      0%   { box-shadow: 0 0 0 0 rgba(61, 220, 132, 0.55), 0 0 10px 2px rgba(61, 220, 132, 0.75); }
+      70%  { box-shadow: 0 0 0 8px rgba(61, 220, 132, 0), 0 0 10px 2px rgba(61, 220, 132, 0.75); }
+      100% { box-shadow: 0 0 0 0 rgba(61, 220, 132, 0), 0 0 10px 2px rgba(61, 220, 132, 0.75); }
+    }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="brand">
-      <div class="logo">
-        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="20" cy="20" r="18.2" stroke="currentColor" stroke-width="2.2"/>
+      <div class="logo" aria-hidden="true">
+        <!-- Football -->
+        <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <clipPath id="ballClip"><circle cx="20" cy="20" r="19"/></clipPath>
+            <radialGradient id="ballShade" cx="34%" cy="28%" r="80%">
+              <stop offset="0" stop-color="#ffffff"/>
+              <stop offset="0.65" stop-color="#f2ebe6"/>
+              <stop offset="1" stop-color="#cfc4bf"/>
+            </radialGradient>
+          </defs>
+          <circle cx="20" cy="20" r="19" fill="url(#ballShade)"/>
+          <g clip-path="url(#ballClip)" fill="#0b0b0e" stroke="#0b0b0e" stroke-linejoin="round">
+            <!-- centre panel -->
+            <polygon points="20,14.5 25.23,18.3 23.23,24.45 16.77,24.45 14.77,18.3" stroke-width="0.6"/>
+            <!-- seams -->
+            <g fill="none" stroke-width="1" stroke-linecap="round">
+              <line x1="20" y1="14.5" x2="20" y2="8.5"/>
+              <line x1="25.23" y1="18.3" x2="30.9" y2="16.5"/>
+              <line x1="23.23" y1="24.45" x2="26.7" y2="29.3"/>
+              <line x1="16.77" y1="24.45" x2="13.3" y2="29.3"/>
+              <line x1="14.77" y1="18.3" x2="9.1" y2="16.5"/>
+            </g>
+            <!-- edge panels -->
+            <g stroke-width="0.6">
+              <polygon points="20,8.5 14.77,4.7 16.77,-1.45 23.23,-1.45 25.23,4.7" transform="rotate(36 20 20)"/>
+              <polygon points="20,8.5 14.77,4.7 16.77,-1.45 23.23,-1.45 25.23,4.7" transform="rotate(108 20 20)"/>
+              <polygon points="20,8.5 14.77,4.7 16.77,-1.45 23.23,-1.45 25.23,4.7" transform="rotate(180 20 20)"/>
+              <polygon points="20,8.5 14.77,4.7 16.77,-1.45 23.23,-1.45 25.23,4.7" transform="rotate(252 20 20)"/>
+              <polygon points="20,8.5 14.77,4.7 16.77,-1.45 23.23,-1.45 25.23,4.7" transform="rotate(324 20 20)"/>
+            </g>
+          </g>
+          <circle cx="20" cy="20" r="19" fill="none" stroke="rgba(0,0,0,0.25)" stroke-width="0.8"/>
         </svg>
       </div>
-      <span class="brand-name">Referee</span>
+      <div class="brand-text">
+        <span class="brand-name">Referee</span>
+        <span class="brand-tag">Neutral record of every handshake</span>
+      </div>
     </div>
     <div class="header-right">
       <span class="pill mono" id="protoPill">Connecting to /mcp…</span>
-      <span class="pill" id="statusPill"><span class="dot"></span>MCP server active</span>
+      <span class="pill" id="statusPill" data-state="connecting"><span class="dot"></span>Connecting…</span>
     </div>
   </header>
 
@@ -454,7 +559,7 @@
 
       <div class="input-area">
         <button class="btn btn-mic" id="micBtn" title="Voice input"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="2" width="6" height="10" rx="3"/><path d="M4 9.5a6 6 0 0 0 12 0M10 15.5V18"/></svg></button>
-        <input type="text" id="userInput" placeholder="Speak or type a handshake deal..." />
+        <input type="text" id="userInput" placeholder="Speak or type a handshake deal..." autocomplete="off" />
         <button class="btn" id="sendBtn">Send</button>
       </div>
     </section>
@@ -472,5 +577,34 @@
   </div>
 
   <script src="/simulator/app.js"></script>
+  <script>
+    // Cosmetic only: mirrors the existing status text from app.js into a data-state
+    // attribute so the dot can glow green when connected. app.js is untouched.
+    (function () {
+      var pill = document.getElementById("statusPill");
+      var proto = document.getElementById("protoPill");
+      if (!pill) return;
+
+      function sync() {
+        var t = (pill.textContent || "").toLowerCase();
+        var s = "connecting";
+        if (pill.classList.contains("active-draft")) s = "draft";
+        else if (t.indexOf("not connected") !== -1 || t.indexOf("unreachable") !== -1) s = "offline";
+        else if (t.indexOf("connected") !== -1) s = "online";
+        if (pill.getAttribute("data-state") !== s) pill.setAttribute("data-state", s);
+
+        if (proto) {
+          var live = /^mcp\s+\d/i.test((proto.textContent || "").trim());
+          proto.classList.toggle("live", live);
+        }
+      }
+
+      var opts = { childList: true, characterData: true, subtree: true };
+      new MutationObserver(sync).observe(pill, opts);
+      if (proto) new MutationObserver(sync).observe(proto, opts);
+      new MutationObserver(sync).observe(pill, { attributes: true, attributeFilter: ["class"] });
+      sync();
+    })();
+  </script>
 </body>
 </html>
