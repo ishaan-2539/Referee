@@ -18,3 +18,10 @@ Wed 11:25pm | Simulator UI | String matching in app.js missed named queries ("Di
 Wed 11:35pm | Simulator UI | Intent classification order prioritized active deal state over general queries and cancellation commands, trapping user in rigid Q&A procedures
 Wed 11:50pm | Server / Verdict | Single-deal payment logging caused total balance confusion when multiple deals existed for the same counterparty; resolved via FIFO waterfall logic
 Wed 11:58pm | Simulator / Server | Duplicate counterparties caused merged ledgers without confirmation; resolved with PARTY_AMBIGUOUS disambiguation and conversational chitchat interceptors
+Thu 10:05pm | Detector | AMOUNT_FUZZY re-evaluated raw utterance keywords ("about") on subsequent turns, causing infinite "Exactly how much?" clarification loops
+Thu 10:12pm | Pytest / Store | Test runner used DEFAULT_DB_PATH (referee.db) instead of isolated temp fixtures, polluting live demo database with test entities
+Thu 10:20pm | Server / Waterfall | log_payment silently truncated overpayments against outstanding balances without raising an error or returning a warning
+Thu 10:30pm | Simulator UI | Numeric parsing regex in app.js matched before commas in formatted currency strings ("1,500" -> ₹1) and stale browser caching hid JS updates
+Thu 10:38pm | Parser / Detector | Counterparty regex swallowed quantity terms ("Aman 5 lakh"), decimal paise dropped, and relative deadline prompts hardcoded day strings
+Thu 10:45pm | Server / Matching | Prefix-based string comparison (startswith) in party matching caused false positive collisions between distinct names like Ram/Ramesh
+Thu 10:52pm | Packaging | Unpinned mcp dependency broke server imports, vagueterms missing from pyproject.toml, and missing root README.md failed editable pip installs

@@ -25,6 +25,8 @@ def fresh_db():
     init_db(TEST_DB)
     yield
     store_mod.DEFAULT_DB_PATH = old_path
+    if os.path.exists(TEST_DB):
+        os.remove(TEST_DB)
 
 
 def test_full_deal_flow_and_hash_chain():

@@ -411,7 +411,10 @@ async function handleUserMessage(text) {
   if (isPaymentIntent) {
     currentDealId = null;
     updateStatusBadge(false);
-    const numMatch = trimmed.match(/\d+/);
+
+    // Strip commas first so "1,500" becomes "1500"
+    const cleanText = trimmed.replace(/,/g, "");
+    const numMatch = cleanText.match(/\d+(?:\.\d+)?/);
     const amount = numMatch ? parseFloat(numMatch[0]) : 0;
     const detectedName = extractName(trimmed);
 

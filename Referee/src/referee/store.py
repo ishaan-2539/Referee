@@ -291,5 +291,6 @@ def get_deal_state(deal_id: str, db_path: Optional[str] = None) -> Optional[Dict
     state["balance_paise"] = max(balance, 0)
     state["payments"] = payments
     state["amendments"] = amendments
+    state["question_count"] = len([e for e in events if e["type"] == "term_set"])
 
     return state

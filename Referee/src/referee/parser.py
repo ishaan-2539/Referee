@@ -26,13 +26,17 @@ def parse_amount_paise(text: str) -> Optional[int]:
     if k_match:
         return int(float(k_match.group(1)) * 1000 * 100)
         
-    l_match = re.search(r"\b(\d+(?:\.\d+)?)\s*l\b", text_lower)
+    l_match = re.search(r"\b(\d+(?:\.\d+)?)\s*(?:lakh|lac|l)\b", text_lower)
     if l_match:
         return int(float(l_match.group(1)) * 100000 * 100)
 
-    num_match = re.search(r"\b(?:rs\.?|inr|\₹)?\s*(\d{1,3}(?:,\d{3})*|\d+)\b", text_lower)
+    num_match = re.search(r"\b(?:rs\.?|inr|\₹)?\s*(\d{1,3}(?:,\d{3})*|\d+)(?:\.(\d{1,2}))?\b", text_lower)
     if num_match:
         raw_num = num_match.group(1).replace(",", "")
+        paise_str = num_match.group(2)
+        if paise_str:
+            paise_str = paise_str.ljust(2, '0')
+            return int(raw_num) * 100 + int(paise_str)
         return int(raw_num) * 100
 
     return None
@@ -50,34 +54,49 @@ def parse_direction_and_party(text: str) -> Tuple[Optional[Direction], Optional[
     elif is_lent:
         direction = Direction.LENT
 
-    # Matches names like "Aman", "Aman Sharma", "Aman 2", "Aman (2)",
-    # while preventing matching digits from formatted numbers like "1,500"
-    name_pattern = r"([A-Za-z]+(?:\s+(?:\(\d+\)|\d\b(?![,\.\d])|[A-Za-z]+))*)"
-
     party = None
 
     if is_borrowed:
-        m = re.search(r"\bi\s+owe\s+" + name_pattern, text, re.IGNORECASE)
-        if m:
-            party = m.group(1).strip()
-        else:
-            m2 = re.search(r"\b(?:from|borrowed\s+from|took\s+from|got\s+from)\s+" + name_pattern, text, re.IGNORECASE)
-            if m2 and m2.group(1).lower() not in {"me", "a", "the", "some"}:
-                party = m2.group(1).strip()
-
+        m = re.search(r"\bi\s+owe\s+(.+)", text, re.IGNORECASE)
+        if not m:
+            m = re.search(r"\b(?:from|borrowed\s+from|took\s+from|got\s+from)\s+(.+)", text, re.IGNORECASE)
     elif is_lent:
-        m = re.search(r"\b" + name_pattern + r"\s+owes?\s+me\b", text, re.IGNORECASE)
-        if m:
-            party = m.group(1).strip()
-        else:
-            m2 = re.search(r"\b(?:lent|loaned|gave|paid)\s+(?:to\s+)?" + name_pattern, text, re.IGNORECASE)
-            if m2 and m2.group(1).lower() not in {"to", "me", "a", "the", "some"}:
-                party = m2.group(1).strip()
+        m = re.search(r"\b(.+?)\s+owes?\s+me\b", text, re.IGNORECASE)
+        if not m:
+            m = re.search(r"\b(?:lent|loaned|gave|paid)\s+(?:to\s+)?(.+)", text, re.IGNORECASE)
+    else:
+        m = None
 
-    if party:
-        party = re.sub(r"^(?:to|from|a|the)\s+", "", party, flags=re.IGNORECASE).strip().title()
+    if m:
+        raw_tail = m.group(1).strip()
+        tokens = raw_tail.split()
+        name_tokens = []
+        for i, tok in enumerate(tokens):
+            tok_clean = re.sub(r"[^\w\(\)]", "", tok)
+            tok_lower = tok_clean.lower()
 
-    if not direction and re.search(r"\b(he|she|they|him|her)\b", text_lower):
+            if i == 0 and tok_lower in {"to", "from", "a", "the", "me", "some"}:
+                continue
+
+            if tok_lower in {"lakh", "lac", "l", "k", "thousand", "crore", "rs", "inr", "rupees", "rupee", "for", "on", "about", "around", "by", "via", "cash", "upi", "bank"}:
+                break
+
+            if re.match(r"^(?:\₹|rs\.?)?\d", tok_lower):
+                if re.match(r"^\(\d+\)$", tok_lower) or (i > 0 and re.match(r"^\d{1,2}$", tok_lower)):
+                    if i + 1 < len(tokens) and tokens[i+1].lower() in {"lakh", "lac", "l", "k", "thousand", "crore", "rupees", "rs", "inr"}:
+                        break
+                    name_tokens.append(tok)
+                else:
+                    break
+            elif tok_clean.isalpha():
+                name_tokens.append(tok_clean)
+            else:
+                break
+
+        if name_tokens:
+            party = " ".join(name_tokens).strip().title()
+
+    if not party and not direction and re.search(r"\b(he|she|they|him|her)\b", text_lower):
         if "pay" in text_lower or "owes" in text_lower:
             direction = Direction.LENT
             party = "he"
@@ -117,7 +136,6 @@ def parse_utterance_regex(utterance: str, base_dt: Optional[datetime] = None) ->
     """Regex + rule-based parser fallback."""
     direction, counterparty = parse_direction_and_party(utterance)
 
-    # Strip out the counterparty name before parsing amount to prevent matching digits in names (e.g. 'Aman 2')
     text_for_amount = utterance
     if counterparty:
         text_for_amount = re.sub(re.escape(counterparty), "", utterance, flags=re.IGNORECASE)

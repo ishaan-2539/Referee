@@ -25,7 +25,7 @@ class TermSheet:
     currency: str = "INR"
     deadline_ts: Optional[datetime] = None
     payment_mode: Optional[PaymentMode] = None
-    partial_policy: PartialPolicy = PartialPolicy.ACCEPT_PARTIAL
+    partial_policy: Optional[PartialPolicy] = None
     purpose: Optional[str] = None
 
     def to_dict(self) -> dict:

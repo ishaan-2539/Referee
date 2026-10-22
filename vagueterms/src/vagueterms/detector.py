@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import List, Optional, Dict, Any, Tuple
 
 # Rule ID constants
@@ -46,6 +47,7 @@ def detect_vague_terms(
 ) -> Tuple[List[str], Optional[Question], List[str]]:
     """Pure-function detector for vague handshake terms."""
     flags = []
+    defaults_applied = []
     utterance_lower = raw_utterance.lower()
 
     # Rule 1: DIRECTION_UNCLEAR
@@ -57,12 +59,13 @@ def detect_vague_terms(
     if not counterparty or counterparty.lower() in PRONOUNS:
         flags.append(PARTY_PRONOUN)
 
-    # Rule 3: PARTY_AMBIGUOUS (Triggers if existing matching counterparties exist in DB and haven't been confirmed)
+    # Rule 3: PARTY_AMBIGUOUS
     if counterparty and counterparty.lower() not in PRONOUNS and matching_counterparties and not slots.get("party_confirmed"):
         flags.append(PARTY_AMBIGUOUS)
 
     # Rule 4: AMOUNT_FUZZY
-    if re.search(r"\b(around|about|approx|approximately|~|some|a few)\b", utterance_lower) or not slots.get("amount_paise"):
+    is_fuzzy = bool(re.search(r"\b(around|about|approx|approximately|~|some|a few)\b", utterance_lower))
+    if (is_fuzzy and not slots.get("amount_confirmed")) or not slots.get("amount_paise"):
         flags.append(AMOUNT_FUZZY)
 
     # Rule 5: AMOUNT_UNIT
@@ -89,16 +92,47 @@ def detect_vague_terms(
     if not slots.get("partial_policy"):
         flags.append(PARTIAL_MISSING)
 
+    # Enforce max 3 questions limit by applying defaults for non-blocking flags
+    question_count = slots.get("question_count", 0)
+    if question_count >= 3:
+        for rule in list(flags):
+            if rule == MODE_MISSING and not slots.get("payment_mode"):
+                slots["payment_mode"] = "upi"
+                defaults_applied.append("payment_mode=UPI")
+                flags.remove(MODE_MISSING)
+            elif rule == PARTIAL_MISSING and not slots.get("partial_policy"):
+                slots["partial_policy"] = "accept_partial"
+                defaults_applied.append("partial_policy=accept_partial")
+                flags.remove(PARTIAL_MISSING)
+            elif rule in {DEADLINE_RELATIVE, DEADLINE_FUZZY, DEADLINE_CONDITIONAL} and not slots.get("deadline_confirmed"):
+                slots["deadline_confirmed"] = True
+                defaults_applied.append("deadline_confirmed=True")
+                flags.remove(rule)
+            elif rule == AMOUNT_UNIT and not slots.get("amount_confirmed"):
+                slots["amount_confirmed"] = True
+                defaults_applied.append("amount_confirmed=True")
+                flags.remove(rule)
+
     party_name = counterparty.capitalize() if counterparty else "that person"
     
-    # Questions mapping
+    # Format dynamic deadline string if parsed
+    deadline_str = "Friday 11:59 PM IST"
+    if slots.get("deadline_ts"):
+        try:
+            ts_val = slots["deadline_ts"]
+            dt = datetime.fromisoformat(ts_val) if isinstance(ts_val, str) else ts_val
+            day_name = dt.strftime("%A")
+            deadline_str = f"{day_name} 11:59 PM IST"
+        except Exception:
+            pass
+
     questions_map = {
         DIRECTION_UNCLEAR: Question(DIRECTION_UNCLEAR, "Does the other person owe you, or do you owe them?", "lent"),
         PARTY_PRONOUN: Question(PARTY_PRONOUN, "Who exactly? Give me a full name.", None),
         PARTY_AMBIGUOUS: Question(PARTY_AMBIGUOUS, f"You already have active deals with {party_name}. Is this the same {party_name}, or a different person?", "same"),
         AMOUNT_FUZZY: Question(AMOUNT_FUZZY, "Exactly how much was agreed in total?", None),
         AMOUNT_UNIT: Question(AMOUNT_UNIT, "Can you confirm the exact total amount in Rupees?", slots.get("amount_paise")),
-        DEADLINE_RELATIVE: Question(DEADLINE_RELATIVE, "Is Friday 11:59 PM IST acceptable as the exact deadline?", "Friday 11:59 PM IST"),
+        DEADLINE_RELATIVE: Question(DEADLINE_RELATIVE, f"Is {deadline_str} acceptable as the exact deadline?", deadline_str),
         DEADLINE_FUZZY: Question(DEADLINE_FUZZY, "Should we set the deadline to the end of this month at 11:59 PM IST?", "End of Month 11:59 PM IST"),
         DEADLINE_CONDITIONAL: Question(DEADLINE_CONDITIONAL, "What specific date should it be due if that event hasn't happened?", "In 14 days"),
         MODE_MISSING: Question(MODE_MISSING, "How will this be paid: cash, UPI, or bank transfer?", "UPI"),
@@ -111,4 +145,4 @@ def detect_vague_terms(
             next_q = questions_map.get(rule)
             break
 
-    return flags, next_q, []
+    return flags, next_q, defaults_applied

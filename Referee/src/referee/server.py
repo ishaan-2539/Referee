@@ -40,11 +40,17 @@ def normalize_party_name(name: str) -> str:
 
 
 def _find_matching_parties(name: Optional[str], exclude_deal_id: Optional[str] = None) -> List[str]:
-    """Returns distinct stored counterparty names matching `name` across spacing/number variations."""
+    """Returns distinct stored counterparty names matching `name` via exact equality or token alignment."""
     if not name:
         return []
     
+    target_clean = re.sub(r"[^\w\s]", "", name).strip().lower()
+    target_tokens = target_clean.split()
+    if not target_tokens:
+        return []
+
     target_norm = normalize_party_name(name)
+    
     conn = store_mod.get_connection(store_mod.DEFAULT_DB_PATH)
     cursor = conn.cursor()
     
@@ -59,10 +65,23 @@ def _find_matching_parties(name: Optional[str], exclude_deal_id: Optional[str] =
     matches = []
     for r in rows:
         cp = r["counterparty"]
-        if cp:
-            cp_norm = normalize_party_name(cp)
-            if cp_norm == target_norm or cp_norm.startswith(target_norm) or target_norm.startswith(cp_norm):
-                matches.append(cp)
+        if not cp:
+            continue
+        
+        cp_norm = normalize_party_name(cp)
+        if cp_norm == target_norm:
+            matches.append(cp)
+            continue
+        
+        cp_clean = re.sub(r"[^\w\s]", "", cp).strip().lower()
+        cp_tokens = cp_clean.split()
+        if not cp_tokens:
+            continue
+
+        # Match when first-name tokens are identical (e.g. "Aman" matches "Aman Sharma" or "Aman (2)"),
+        # but prevent substring prefix collisions like "Ram" matching "Ramesh".
+        if target_tokens[0] == cp_tokens[0]:
+            matches.append(cp)
             
     return matches
 
@@ -330,7 +349,36 @@ def log_payment(amount_inr: float, deal_id: Optional[str] = None, counterparty: 
         if not target_deals:
             return {"error": "Deal not found", "summary": f"I couldn't find an active deal for {counterparty or 'that query'} to record that payment."}
 
-        remaining_paise_to_apply = int(round(amount_inr * 100))
+        sample_st = get_deal_state(target_deals[0], db_path=store_mod.DEFAULT_DB_PATH) or {}
+        party_name = counterparty or sample_st.get("counterparty") or "counterparty"
+
+        # Calculate total outstanding balance across target deals
+        total_balance_paise = 0
+        deal_balances = {}
+        for d_id in target_deals:
+            st = get_deal_state(d_id, db_path=store_mod.DEFAULT_DB_PATH) or {}
+            v = compute_verdict(st)
+            bal = v["balance_paise"]
+            deal_balances[d_id] = bal
+            if bal > 0:
+                total_balance_paise += bal
+
+        payment_paise = int(round(amount_inr * 100))
+
+        if total_balance_paise == 0:
+            return {
+                "error": "No balance remaining",
+                "summary": f"All recorded deals for {party_name} are already fully SETTLED."
+            }
+
+        if payment_paise > total_balance_paise:
+            tot_bal_inr = total_balance_paise / 100
+            return {
+                "error": "Overpayment rejected",
+                "summary": f"Cannot log payment of ₹{amount_inr:.0f}: exceeds remaining total balance of ₹{tot_bal_inr:.0f} for {party_name}."
+            }
+
+        remaining_paise_to_apply = payment_paise
         events_logged = []
         last_deal_id = target_deals[0]
 
@@ -339,14 +387,12 @@ def log_payment(amount_inr: float, deal_id: Optional[str] = None, counterparty: 
                 break
 
             last_deal_id = d_id
-            st = get_deal_state(d_id, db_path=store_mod.DEFAULT_DB_PATH) or {}
-            v = compute_verdict(st)
-            deal_balance = v["balance_paise"]
+            deal_balance = deal_balances.get(d_id, 0)
 
-            if deal_balance <= 0 and len(target_deals) > 1:
+            if deal_balance <= 0:
                 continue
 
-            paise_for_this_deal = min(remaining_paise_to_apply, deal_balance) if deal_balance > 0 else remaining_paise_to_apply
+            paise_for_this_deal = min(remaining_paise_to_apply, deal_balance)
             if paise_for_this_deal > 0:
                 ev_id = append_event(d_id, "payment", {"amount_paise": paise_for_this_deal, "mode": mode or "upi"}, db_path=store_mod.DEFAULT_DB_PATH)
                 events_logged.append(ev_id)
@@ -355,7 +401,6 @@ def log_payment(amount_inr: float, deal_id: Optional[str] = None, counterparty: 
         last_st = get_deal_state(last_deal_id, db_path=store_mod.DEFAULT_DB_PATH) or {}
         last_verdict = compute_verdict(last_st)
         deal_bal_inr = last_verdict["balance_paise"] / 100
-        party_name = counterparty or last_st.get("counterparty") or "counterparty"
 
         ledger_res = get_ledger(counterparty=party_name)
         overall_net_inr = ledger_res.get("net_balance_inr", 0)
