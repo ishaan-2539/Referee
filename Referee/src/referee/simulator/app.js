@@ -288,7 +288,7 @@ function extractName(text) {
     "borrowed", "he", "she", "verdict", "status", "did", "pay", "a", "the", "its", "it's",
     "different", "another", "same", "person", "one", "who", "owes", "me", "what", "how",
     "much", "does", "owe", "cancel", "nevermind", "sounds", "good", "yep", "yeah", "sure",
-    "cool", "do", "it", "lock", "confirm", "now"
+    "cool", "do", "it", "lock", "confirm", "now", "which", "which?", "who?", "where"
   ]);
   const words = text.replace(/[^a-zA-Z\s]/g, "").split(/\s+/);
   for (const w of words) {
@@ -430,8 +430,10 @@ async function handleUserMessage(text) {
     return;
   }
 
-  // Intent 6: Answer Clarifying Question for Active Deal Proposal
-  if (currentDealId) {
+ // Intent 6: Answer Clarifying Question for Active Deal Proposal
+  const isNewProposalUtterance = /\b(i lent|i owe|lent|borrowed|gave|took)\b/i.test(trimmed);
+
+  if (currentDealId && !isNewProposalUtterance) {
     const res = await callMCPTool("answer_question", { deal_id: currentDealId, answer: trimmed });
     if (res.updated_slots && res.updated_slots.counterparty) {
       lastCounterparty = res.updated_slots.counterparty;
@@ -439,7 +441,7 @@ async function handleUserMessage(text) {
     appendMessage("alexa", res.read_back || res.summary);
     return;
   }
-
+  
   // Intent 7: Propose New Handshake Deal (Fallback)
   const res = await callMCPTool("propose_deal", { utterance: trimmed });
   if (res.deal_id) {

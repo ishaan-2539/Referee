@@ -1,15 +1,12 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 
+IST = timezone(timedelta(hours=5, minutes=30))
 def compute_verdict(state: Dict[str, Any], now: Optional[datetime] = None) -> Dict[str, Any]:
-    """
-    Pure-function verdict engine.
-    Calculates balance, payment status, days overdue, and card colour.
-    """
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(IST)
     elif now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
+        now = now.replace(tzinfo=IST)
 
     principal_paise = state.get("principal_paise") or state.get("amount_paise") or 0
     paid_paise = state.get("paid_paise") or 0
@@ -19,18 +16,16 @@ def compute_verdict(state: Dict[str, Any], now: Optional[datetime] = None) -> Di
     direction = state.get("direction") or "lent"
     partial_policy = state.get("partial_policy") or "accept_partial"
 
-    # Deadline parsing
     deadline_ts_str = state.get("deadline_ts")
     deadline_dt = None
     if deadline_ts_str:
         try:
             deadline_dt = datetime.fromisoformat(deadline_ts_str)
             if deadline_dt.tzinfo is None:
-                deadline_dt = deadline_dt.replace(tzinfo=timezone.utc)
+                deadline_dt = deadline_dt.replace(tzinfo=IST)
         except ValueError:
             pass
 
-    # Status & Colour Logic
     if balance_paise == 0 and principal_paise > 0:
         status = "SETTLED"
         colour = "green"
@@ -52,7 +47,6 @@ def compute_verdict(state: Dict[str, Any], now: Optional[datetime] = None) -> Di
             status = "OPEN"
         colour = "neutral"
 
-    # Summary formatting
     balance_inr = balance_paise / 100
     if status == "SETTLED":
         one_liner = f"Verdict: Deal with {counterparty} is fully SETTLED. Green card."
