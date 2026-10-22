@@ -3,12 +3,14 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vagueterms"
+name = "referee"
 version = "0.1.0"
-description = "A deterministic rules engine to detect vague terms in money handshakes."
+description = "An MCP server that resolves vague terms in informal agreements."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "mcp[cli]==2.3.0",
+    "vagueterms",
     "python-dateutil>=2.9.0"
 ]
 

@@ -1,9 +1,0 @@
-LICENSE
-README.md
-pyproject.toml
-src/vagueterms/__init__.py
-src/vagueterms.egg-info/PKG-INFO
-src/vagueterms.egg-info/SOURCES.txt
-src/vagueterms.egg-info/dependency_links.txt
-src/vagueterms.egg-info/requires.txt
-src/vagueterms.egg-info/top_level.txt
