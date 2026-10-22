@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚖️ Referee
+# ⚽ Referee
 
 ### Alexa reminders remember *when*. Referee remembers *what you agreed*.
 
