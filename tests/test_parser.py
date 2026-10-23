@@ -15,7 +15,7 @@ def test_parse_simple_lending():
     assert sheet.deadline_ts.strftime("%Y-%m-%d") == "2026-10-23"  # Friday
 
 def test_parse_utterance_fallback():
-    # Verify fallback operates without Bedrock enabled
+    # Verify the rule-based parser works
     sheet = parse_utterance("I borrowed 500 from Rohan")
     assert sheet.direction == Direction.BORROWED
     assert sheet.counterparty == "Rohan"
